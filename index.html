@@ -1,1269 +1,828 @@
 <!DOCTYPE html>
-<html lang="es" class="dark">
+<html lang="es" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TsunamiGuard - Dashboard Global de Monitoreo de Tsunamis</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1220">
+  <meta name="description" content="TsunamiGuard: panel de observación sísmica y consulta de mensajes oficiales de tsunami.">
+  <title>TsunamiGuard | Observatorio sísmico y mensajes de tsunami</title>
 
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50: '#eff6ff',
-                            500: '#3b82f6',
-                            900: '#1e3a8a',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+  <!-- Leaflet: mapa interactivo. El resto de la interfaz no depende de frameworks externos. -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-    <!-- Leaflet CSS & JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <!-- Google Fonts Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        
-        /* Animation pulse waves for map icons */
-        @keyframes pulse-wave {
-            0% { transform: scale(0.5); opacity: 1; }
-            100% { transform: scale(2.8); opacity: 0; }
-        }
-        .tsunami-pulse {
-            position: absolute;
-            border-radius: 50%;
-            animation: pulse-wave 2s infinite ease-out;
-            pointer-events: none;
-        }
-
-        /* Custom scrollbars */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
-        ::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.6); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.9); }
-    </style>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg:#08111f; --surface:#101c2d; --surface-2:#15243a; --surface-3:#1c2d45;
+      --text:#e8eef7; --muted:#91a2b9; --border:#263951; --accent:#38bdf8;
+      --accent-2:#2563eb; --green:#22c55e; --yellow:#f59e0b; --red:#ef4444;
+      --orange:#f97316; --purple:#a78bfa; --shadow:0 18px 50px rgba(0,0,0,.25);
+      --map-filter:none;
+    }
+    html[data-theme="light"] {
+      color-scheme:light;
+      --bg:#eef3f8; --surface:#ffffff; --surface-2:#f4f7fb; --surface-3:#e8eef5;
+      --text:#122033; --muted:#607086; --border:#d5dfeb; --accent:#0369a1;
+      --accent-2:#1d4ed8; --green:#15803d; --yellow:#a16207; --red:#b91c1c;
+      --orange:#c2410c; --purple:#6d28d9; --shadow:0 18px 50px rgba(15,23,42,.10);
+    }
+    html[data-theme="system"] { color-scheme: light dark; }
+    @media(prefers-color-scheme:light) {
+      html[data-theme="system"] { --bg:#eef3f8; --surface:#fff; --surface-2:#f4f7fb; --surface-3:#e8eef5; --text:#122033; --muted:#607086; --border:#d5dfeb; --accent:#0369a1; --accent-2:#1d4ed8; --green:#15803d; --yellow:#a16207; --red:#b91c1c; --orange:#c2410c; --purple:#6d28d9; --shadow:0 18px 50px rgba(15,23,42,.10); }
+    }
+    *{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    button,input,select,textarea{font:inherit} button{cursor:pointer} button:disabled{cursor:not-allowed;opacity:.45}
+    a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+    .app-shell{max-width:1600px;margin:0 auto;padding:0 22px 34px}
+    .topbar{position:sticky;top:0;z-index:500;background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);margin:0 -22px;padding:13px 22px}
+    .topbar-inner{max-width:1600px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:18px}
+    .brand{display:flex;align-items:center;gap:12px;min-width:235px}.brand-mark{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(145deg,#2563eb,#06b6d4);color:white;font-size:22px;box-shadow:0 8px 24px rgba(37,99,235,.25)}
+    .brand h1{margin:0;font-size:18px;letter-spacing:-.03em}.brand p{margin:2px 0 0;color:var(--muted);font-size:11px}.version{font-size:9px;vertical-align:middle;color:#7dd3fc;border:1px solid #075985;background:#082f49;padding:2px 6px;border-radius:99px;margin-left:5px;letter-spacing:.04em}
+    .top-tools{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}.clock{font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent);background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;white-space:nowrap}
+    .btn{border:1px solid var(--border);background:var(--surface-2);color:var(--text);border-radius:9px;padding:9px 12px;font-weight:650;font-size:12px;transition:.15s ease;display:inline-flex;align-items:center;gap:7px;justify-content:center}
+    .btn:hover{background:var(--surface-3);transform:translateY(-1px)}.btn-primary{background:var(--accent-2);border-color:var(--accent-2);color:#fff}.btn-primary:hover{background:#1d4ed8}.btn-quiet{background:transparent}.btn-danger{background:#7f1d1d;border-color:#991b1b;color:#fff}.btn-small{padding:6px 9px;font-size:11px}.btn-icon{width:36px;height:36px;padding:0;font-size:16px}
+    .theme-group{display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--border);padding:3px;border-radius:10px}.theme-group .btn{border:0;background:transparent;padding:6px 9px}.theme-group .btn.active{background:var(--accent-2);color:#fff}
+    .source-section{padding:13px 0 4px}.section-kicker{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin-bottom:9px}.section-kicker:before{content:"";height:7px;width:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px color-mix(in srgb,var(--green) 15%,transparent)}
+    .source-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:6px}.source-card{color:var(--text);text-decoration:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 8px;min-width:0;display:flex;flex-direction:column;gap:3px}.source-top{display:flex;align-items:center;justify-content:space-between;gap:4px}.source-code{font-weight:850;font-size:10px;letter-spacing:.02em}.source-state{font-size:8px;font-weight:850;letter-spacing:.03em;text-transform:uppercase;color:var(--muted)}.source-state.ok{color:var(--green)}.source-state.warn{color:var(--yellow)}.source-state.err{color:var(--red)}.source-state.portal{color:var(--accent)}.source-desc{font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.source-meta{font:8px ui-monospace,monospace;color:var(--muted);min-height:9px}
+    .notice{border:1px solid var(--border);background:var(--surface);border-radius:13px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin:13px 0}.notice-main{display:flex;align-items:flex-start;gap:11px}.notice-icon{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--surface-3);color:var(--accent);font-size:16px;flex:none}.notice strong{display:block;font-size:12px}.notice p{margin:2px 0 0;font-size:11px;color:var(--muted)}.notice.warning{border-color:color-mix(in srgb,var(--red) 50%,var(--border))}.notice.warning .notice-icon{background:color-mix(in srgb,var(--red) 18%,var(--surface));color:var(--red)}
+    .stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:13px 15px;box-shadow:var(--shadow)}.stat-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:800}.stat-value{font-size:26px;font-weight:850;letter-spacing:-.04em;margin-top:2px}.stat-note{font-size:10px;color:var(--muted)}
+    .main-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(360px,1fr);gap:13px;margin-top:13px}.panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;min-width:0}.panel-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px}.panel-head h2{font-size:14px;margin:0;font-weight:850}.panel-head p{font-size:10px;color:var(--muted);margin:3px 0 0}.panel-body{padding:13px 15px}
+    .map-wrap{position:relative;height:610px;background:#dce7f0}.map-toolbar{position:absolute;z-index:450;top:12px;left:12px;display:flex;gap:5px;flex-wrap:wrap;max-width:calc(100% - 24px);padding:6px;background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--border);border-radius:11px;box-shadow:var(--shadow);backdrop-filter:blur(8px)}.map-toolbar .btn{padding:6px 8px;font-size:10px}.map-toolbar .btn.active{background:var(--accent-2);border-color:var(--accent-2);color:#fff}.map-legend{position:absolute;z-index:450;left:12px;bottom:12px;background:color-mix(in srgb,var(--surface) 94%,transparent);border:1px solid var(--border);border-radius:11px;padding:9px 11px;font-size:10px;display:grid;gap:5px;backdrop-filter:blur(8px)}.legend-item{display:flex;align-items:center;gap:7px}.legend-dot{width:9px;height:9px;border-radius:50%;display:inline-block}.map-attribution-note{position:absolute;right:10px;bottom:8px;z-index:400;background:rgba(255,255,255,.8);color:#334155;padding:2px 5px;font:9px Arial;border-radius:4px;pointer-events:none}
+    .feed-tools{display:grid;grid-template-columns:1fr 100px;gap:7px;padding:11px 13px;border-bottom:1px solid var(--border)}.field{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:9px 10px;font-size:11px;min-width:0}.feed-tabs{display:flex;gap:4px;padding:9px 13px 0}.tab{border:1px solid var(--border);background:transparent;color:var(--muted);padding:6px 9px;border-radius:8px;font-weight:750;font-size:10px}.tab.active{background:var(--surface-3);color:var(--text);border-color:var(--accent)}.events-list{padding:10px 12px;display:flex;flex-direction:column;gap:7px;max-height:495px;min-height:360px;overflow:auto}.event-card{border:1px solid var(--border);background:var(--surface-2);border-radius:11px;padding:10px 11px;cursor:pointer;transition:.15s}.event-card:hover{border-color:var(--accent);transform:translateY(-1px)}.event-top,.event-foot{display:flex;align-items:center;justify-content:space-between;gap:8px}.event-title-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}.event-title{font-size:11px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.event-mag{font-size:12px;font-weight:900;white-space:nowrap;background:var(--surface-3);padding:3px 6px;border-radius:6px}.event-meta{font-size:9px;color:var(--muted);display:flex;flex-wrap:wrap;gap:8px}.event-summary{font-size:10px;color:var(--muted);margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.tag{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:3px 6px;font-size:9px;line-height:1.2;font-weight:900;letter-spacing:.03em;text-transform:uppercase;border:1px solid var(--border);background:var(--surface-3);color:var(--muted)}.tag.red{background:color-mix(in srgb,var(--red) 15%,var(--surface));border-color:color-mix(in srgb,var(--red) 45%,var(--border));color:var(--red)}.tag.orange{background:color-mix(in srgb,var(--orange) 15%,var(--surface));border-color:color-mix(in srgb,var(--orange) 40%,var(--border));color:var(--orange)}.tag.yellow{background:color-mix(in srgb,var(--yellow) 15%,var(--surface));border-color:color-mix(in srgb,var(--yellow) 40%,var(--border));color:var(--yellow)}.tag.blue{background:color-mix(in srgb,var(--accent) 13%,var(--surface));border-color:color-mix(in srgb,var(--accent) 40%,var(--border));color:var(--accent)}.tag.green{background:color-mix(in srgb,var(--green) 13%,var(--surface));border-color:color-mix(in srgb,var(--green) 40%,var(--border));color:var(--green)}.pagination{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 13px;border-top:1px solid var(--border);font-size:10px;color:var(--muted)}.empty-state{padding:35px 14px;text-align:center;color:var(--muted);font-size:11px}
+    .lower-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:13px}.link-list{display:flex;flex-wrap:wrap;gap:7px}.link-pill{display:inline-flex;padding:7px 9px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);font-size:10px;font-weight:750}.small-note{font-size:10px;color:var(--muted);line-height:1.55}.generator-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}.preview-area{display:none;padding:14px;border-top:1px solid var(--border);align-items:center;flex-direction:column;gap:10px}.preview-area.visible{display:flex}.canvas-frame{width:min(100%,420px);border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#09111e;box-shadow:var(--shadow)}#social-canvas{width:100%;height:auto;display:block}.preview-actions{width:min(100%,420px);display:flex;gap:7px}
+    .footer{padding:20px 2px 0;color:var(--muted);font-size:10px;display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap}.footer strong{color:var(--text)}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(2,8,23,.74);z-index:1000;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(7px)}.modal-backdrop.open{display:flex}.modal{width:min(100%,660px);max-height:min(90vh,900px);overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 30px 90px rgba(0,0,0,.4)}.modal-head{padding:15px 17px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px}.modal-head h3{margin:0;font-size:14px}.modal-body{padding:16px;display:grid;gap:13px}.detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.detail-cell{padding:10px;border-radius:9px;background:var(--surface-2);border:1px solid var(--border);min-width:0}.detail-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:850}.detail-value{font-size:11px;font-weight:750;overflow-wrap:anywhere;margin-top:3px}.detail-text{font-size:11px;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:11px;max-height:230px;overflow:auto}.modal-actions{display:flex;gap:7px;flex-wrap:wrap}.settings-row{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface-2);border:1px solid var(--border);padding:10px;border-radius:9px;font-size:11px}.settings-row small{display:block;color:var(--muted);font-size:9px}.settings-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent-2)}.range-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.range-row label{font-size:10px;color:var(--muted);display:grid;gap:6px}.range-row input{width:100%;accent-color:var(--accent-2)}.toast-container{position:fixed;right:16px;bottom:16px;z-index:1200;display:grid;gap:8px;width:min(370px,calc(100vw - 32px));pointer-events:none}.toast{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:10px;padding:11px 13px;box-shadow:var(--shadow);animation:toast-in .18s ease-out}.toast.alert{border-left-color:var(--red)}.toast.success{border-left-color:var(--green)}.toast strong{display:block;font-size:11px}.toast span{display:block;font-size:10px;color:var(--muted);margin-top:2px}@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--surface);color:var(--text)}.leaflet-popup-content{font:11px/1.45 Inter,system-ui,sans-serif}.leaflet-container{font:inherit}.leaflet-control-attribution{font-size:9px!important}.map-marker-dot{border-radius:50%;border:2px solid white;box-shadow:0 1px 8px rgba(0,0,0,.55)}
+    @media(max-width:1100px){.source-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.main-grid{grid-template-columns:minmax(0,1fr) minmax(330px,.85fr)}.map-wrap{height:560px}}
+    @media(max-width:850px){.topbar-inner{align-items:flex-start;flex-direction:column}.top-tools{width:100%;justify-content:space-between}.main-grid{grid-template-columns:1fr}.map-wrap{height:500px}.events-list{max-height:430px}.lower-grid{grid-template-columns:1fr}.brand{min-width:0}}
+    @media(max-width:540px){.source-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}.source-card{padding:5px 6px}.source-desc{font-size:8px}.source-meta{font-size:7px}.source-state{font-size:7px}.app-shell{padding:0 11px 25px}.topbar{margin:0 -11px;padding:11px}.top-tools{gap:6px}.clock{font-size:10px;padding:8px}.source-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.stat-value{font-size:22px}.map-wrap{height:420px}.map-toolbar{top:7px;left:7px;gap:4px}.map-toolbar .btn{font-size:9px;padding:5px 6px}.map-legend{left:7px;bottom:7px;padding:7px;font-size:9px}.panel-head{padding:12px}.feed-tools{grid-template-columns:1fr 88px;padding:9px}.detail-grid{grid-template-columns:1fr 1fr}.notice{align-items:flex-start;flex-direction:column}.notice>.btn{width:100%}.generator-controls{grid-template-columns:1fr}.footer{flex-direction:column}.theme-group .btn{padding:6px 7px}.brand h1{font-size:16px}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+  </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-blue-600 selection:text-white">
-
-    <!-- HEADER & BARRA DE ESTADO SUPERIOR (LAYOUT RESPONSIVE DE 3 BLOQUES) -->
-    <header class="bg-slate-900/90 border-b border-slate-800 sticky top-0 z-30 backdrop-blur-md px-4 py-3">
-        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-            
-            <!-- BLOQUE 1: Logotipo y Marca -->
-            <div class="flex items-center justify-between w-full md:w-auto">
-                <div class="flex items-center space-x-3">
-                    <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                        <i class="fa-solid fa-house-tsunami text-white text-xl"></i>
-                    </div>
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <h1 class="font-extrabold text-lg tracking-tight text-white leading-none">TsunamiGuard</h1>
-                            <span class="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold">v1.0 REAL</span>
-                        </div>
-                        <p class="text-xs text-slate-400">Sistema Global de Alerta Temprana & Sísmica</p>
-                    </div>
-                </div>
-
-                <!-- Theme selector (Mobile) -->
-                <div class="flex items-center gap-2 md:hidden">
-                    <button id="btn-theme-toggle-mobile" class="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white">
-                        <i class="fa-solid fa-moon"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- BLOQUE 2: Métricas Globales En Vivo -->
-            <div class="grid grid-cols-3 gap-2 sm:gap-4 w-full md:w-auto text-center">
-                <div class="bg-slate-800/60 border border-slate-700/60 px-3 py-1.5 rounded-lg">
-                    <div class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Alertas Activas</div>
-                    <div id="metric-alerts-count" class="text-base sm:text-lg font-bold text-amber-400">0</div>
-                </div>
-                <div class="bg-slate-800/60 border border-slate-700/60 px-3 py-1.5 rounded-lg">
-                    <div class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Eventos > 6.0 M</div>
-                    <div id="metric-major-eq" class="text-base sm:text-lg font-bold text-red-500">0</div>
-                </div>
-                <div class="bg-slate-800/60 border border-slate-700/60 px-3 py-1.5 rounded-lg">
-                    <div class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Red Agencias</div>
-                    <div id="metric-agencies-online" class="text-base sm:text-lg font-bold text-emerald-400">8 / 8</div>
-                </div>
-            </div>
-
-            <!-- BLOQUE 3: Herramientas y Reloj UTC -->
-            <div class="flex items-center justify-between md:justify-end w-full md:w-auto gap-3 border-t border-slate-800 md:border-t-0 pt-2 md:pt-0">
-                <div class="flex items-center gap-2 bg-slate-950/60 border border-slate-800 px-3 py-1.5 rounded-lg text-xs font-mono text-cyan-400">
-                    <i class="fa-regular fa-clock"></i>
-                    <span id="live-utc-clock">00:00:00 UTC</span>
-                </div>
-
-                <div class="flex items-center gap-2">
-                    <!-- Audio Settings Modal Trigger -->
-                    <button id="btn-audio-settings" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition" title="Configuración de Notificaciones Voz/Sonido">
-                        <i class="fa-solid fa-sliders text-sm"></i>
-                    </button>
-
-                    <!-- Refresh live data -->
-                    <button id="btn-refresh-data" class="p-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition flex items-center gap-1.5 text-xs font-semibold shadow-md shadow-blue-600/30">
-                        <i class="fa-solid fa-rotate" id="refresh-icon"></i>
-                        <span class="hidden sm:inline">Actualizar</span>
-                    </button>
-
-                    <!-- Selector de Modo de Color Desktop -->
-                    <div class="hidden md:flex items-center bg-slate-800 rounded-lg p-1 border border-slate-700">
-                        <button data-theme="light" class="theme-btn p-1.5 px-2 text-xs rounded text-slate-400 hover:text-white"><i class="fa-solid fa-sun"></i></button>
-                        <button data-theme="dark" class="theme-btn p-1.5 px-2 text-xs rounded text-white bg-blue-600 font-bold"><i class="fa-solid fa-moon"></i></button>
-                        <button data-theme="system" class="theme-btn p-1.5 px-2 text-xs rounded text-slate-400 hover:text-white"><i class="fa-solid fa-desktop"></i></button>
-                    </div>
-                </div>
-            </div>
-
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">🌊</div>
+        <div><h1>TsunamiGuard <span class="version">v2.0 · OBSERVATORIO</span></h1><p>Monitoreo sísmico y consulta de mensajes oficiales de tsunami</p></div>
+      </div>
+      <div class="top-tools">
+        <div class="clock" id="utc-clock">--:--:-- UTC</div>
+        <span id="last-sync" class="small-note">Sin sincronización</span>
+        <button class="btn btn-icon" id="btn-audio-settings" title="Configuración de audio" aria-label="Configuración de audio">♫</button>
+        <button class="btn btn-primary" id="btn-refresh"><span id="refresh-glyph">↻</span> <span id="refresh-label">Actualizar datos</span></button>
+        <div class="theme-group" aria-label="Tema de la interfaz">
+          <button class="btn" data-theme-choice="light" title="Claro">☀</button>
+          <button class="btn active" data-theme-choice="dark" title="Oscuro">☾</button>
+          <button class="btn" data-theme-choice="system" title="Sistema">▣</button>
         </div>
-    </header>
+      </div>
+    </div>
+  </header>
 
-    <!-- ESTADO DE LA RED DE AGENCIAS (GRID RESPONSIVE 8 AGENCIAS) -->
-    <section class="bg-slate-900 border-b border-slate-800 px-4 py-2 text-xs">
-        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center gap-3">
-            <span class="font-bold text-slate-400 flex items-center gap-1.5 whitespace-nowrap">
-                <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                Estado Agencias:
-            </span>
-            <div id="agencies-status-grid" class="grid grid-cols-4 sm:grid-cols-8 gap-2 w-full">
-                <!-- Inyectado dinámicamente -->
-            </div>
-        </div>
+  <div class="app-shell">
+    <section class="source-section" aria-labelledby="sources-title">
+      <div class="section-kicker" id="sources-title">Estado de fuentes y centros</div>
+      <div class="source-grid" id="source-grid" aria-live="polite"></div>
     </section>
 
-    <!-- MAIN DASHBOARD CONTENT -->
-    <main class="max-w-7xl mx-auto w-full p-4 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4">
-        
-        <!-- COLUMNA IZQUIERDA / MAPA INTERACTIVO (8 COLS) -->
-        <section class="lg:col-span-8 flex flex-col gap-4">
-            
-            <!-- CONTENEDOR DEL MAPA CON CAPAS ESRI -->
-            <div class="relative bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex-1 min-h-[480px] lg:min-h-[560px]">
-                
-                <!-- Mapa Leaflet -->
-                <div id="map" class="w-full h-full min-h-[480px] z-10"></div>
+    <section class="notice" id="system-notice" aria-live="polite">
+      <div class="notice-main">
+        <div class="notice-icon">ⓘ</div>
+        <div><strong id="notice-title">Panel de observación independiente</strong><p id="notice-text">Los datos sísmicos y los mensajes oficiales se muestran por separado. Este panel no sustituye las instrucciones de SINAPROC ni de una autoridad competente.</p></div>
+      </div>
+      <a class="btn btn-small" href="https://www.tsunami.gov/" target="_blank" rel="noopener">Abrir NOAA Tsunami.gov ↗</a>
+    </section>
 
-                <!-- Panel Superior Izquierdo: Selección de Capas Base y Placas -->
-                <div class="absolute top-4 left-4 z-20 flex flex-wrap gap-2 bg-slate-900/90 border border-slate-700/80 p-2 rounded-xl backdrop-blur-md shadow-xl text-xs">
-                    <button data-layer="esri-ocean" class="map-layer-btn bg-blue-600 text-white font-semibold px-2.5 py-1 rounded-lg transition">ESRI Océanos</button>
-                    <button data-layer="esri-satellite" class="map-layer-btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-2.5 py-1 rounded-lg transition">Satélite</button>
-                    <button data-layer="esri-dark" class="map-layer-btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-2.5 py-1 rounded-lg transition">Dark Canvas</button>
-                    <button data-layer="esri-topo" class="map-layer-btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-2.5 py-1 rounded-lg transition">Topográfico</button>
-                    
-                    <label class="flex items-center gap-1.5 bg-slate-800/80 px-2.5 py-1 rounded-lg cursor-pointer text-slate-200 border border-slate-700">
-                        <input type="checkbox" id="chk-tectonic-plates" checked class="rounded accent-blue-500">
-                        <span class="font-medium text-[11px]">Placas Tectónicas</span>
-                    </label>
-                </div>
+    <section class="stats-grid" aria-label="Indicadores">
+      <div class="stat-card"><div class="stat-label">Alertas oficiales activas</div><div class="stat-value" id="stat-active-alerts">—</div><div class="stat-note">Mensajes CAP PTWC / NTWC</div></div>
+      <div class="stat-card"><div class="stat-label">Mensajes oficiales recientes</div><div class="stat-value" id="stat-official-messages">—</div><div class="stat-note">CAP NOAA + publicaciones Atom JMA</div></div>
+      <div class="stat-card"><div class="stat-label">Sismos M6.0+</div><div class="stat-value" id="stat-major-quakes">—</div><div class="stat-note">Catálogos sísmicos cargados</div></div>
+      <div class="stat-card"><div class="stat-label">Fuentes consultables</div><div class="stat-value" id="stat-connected">—</div><div class="stat-note">5 feeds con lectura efectiva</div></div>
+    </section>
 
-                <!-- Leyenda del Mapa Inferior Izquierda -->
-                <div class="absolute bottom-4 left-4 z-20 bg-slate-900/90 border border-slate-800 p-3 rounded-xl backdrop-blur-md shadow-xl text-xs space-y-1.5 hidden sm:block">
-                    <div class="font-bold text-slate-300 text-[11px] mb-1">Nivel de Riesgo Tsunami</div>
-                    <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-red-600"></span> Advertencia de Tsunami</div>
-                    <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-amber-500"></span> Vigilancia de Tsunami</div>
-                    <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-blue-500"></span> Informativo / Boletín</div>
-                    <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-emerald-500"></span> Cancelado / Normal</div>
-                </div>
+    <main class="main-grid">
+      <section class="panel" aria-labelledby="map-heading">
+        <div class="panel-head"><div><h2 id="map-heading">Mapa global de actividad</h2><p>Vista satelital inicial · Epicentros sísmicos y áreas CAP cuando contienen geometría</p></div><span class="tag blue" id="map-count">0 elementos</span></div>
+        <div class="map-wrap">
+          <div id="map" style="height:100%;width:100%" role="application" aria-label="Mapa interactivo de eventos sísmicos y mensajes oficiales"></div>
+          <div class="map-toolbar" aria-label="Controles del mapa">
+            <button class="btn active" data-map-layer="satellite">Satélite</button>
+            <button class="btn" data-map-layer="ocean">Océanos</button>
+            <button class="btn" data-map-layer="topo">Topográfico</button>
+            <button class="btn" data-map-layer="dark">Dark</button>
+            <label class="btn" style="cursor:pointer"><input type="checkbox" id="toggle-plates" checked style="accent-color:#2563eb"> Placas</label>
+            <label class="btn" style="cursor:pointer"><input type="checkbox" id="toggle-quakes" checked style="accent-color:#2563eb"> Sismos</label>
+            <label class="btn" style="cursor:pointer"><input type="checkbox" id="toggle-alerts" checked style="accent-color:#2563eb"> Áreas CAP</label>
+          </div>
+          <div class="map-legend">
+            <strong>Leyenda</strong>
+            <div class="legend-item"><i class="legend-dot" style="background:#f59e0b"></i> Sismo M4.5–5.9</div>
+            <div class="legend-item"><i class="legend-dot" style="background:#ef4444"></i> Sismo M6.0+</div>
+            <div class="legend-item"><i class="legend-dot" style="background:#dc2626"></i> Warning (CAP)</div>
+            <div class="legend-item"><i class="legend-dot" style="background:#f97316"></i> Advisory / Watch (CAP)</div>
+          </div>
+          <div class="map-attribution-note">Imagery © Esri · Datos © proveedores</div>
+        </div>
+      </section>
 
-            </div>
-        </section>
-
-        <!-- COLUMNA DERECHA / FEED PAGINADO DE EVENTOS (4 COLS) -->
-        <section class="lg:col-span-4 flex flex-col gap-4">
-            
-            <!-- PANEL DE EVENTOS REGISTRADOS -->
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col h-full min-h-[500px]">
-                
-                <!-- Encabezado y Filtro -->
-                <div class="flex items-center justify-between mb-3 pb-3 border-b border-slate-800">
-                    <div class="flex items-center gap-2">
-                        <i class="fa-solid fa-list-check text-blue-400"></i>
-                        <h2 class="font-bold text-sm text-white">Eventos Registrados en Vivo</h2>
-                    </div>
-                    
-                    <!-- Filtro por Magnitud -->
-                    <select id="filter-magnitude" class="bg-slate-800 border border-slate-700 text-xs rounded-lg px-2 py-1 text-slate-200">
-                        <option value="0">Todas M0.0+</option>
-                        <option value="5">M5.0+</option>
-                        <option value="6" selected>M6.0+</option>
-                        <option value="7">M7.0+</option>
-                    </select>
-                </div>
-
-                <!-- Lista de 25 eventos paginados -->
-                <div id="events-list-container" class="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[460px]">
-                    <!-- Renderizado dinámico -->
-                </div>
-
-                <!-- Footer de Paginación (25 eventos por bloque) -->
-                <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                    <span id="pagination-info">Mostrando 1 - 25</span>
-                    <div class="flex items-center gap-1">
-                        <button id="btn-prev-page" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg disabled:opacity-40">Anterior</button>
-                        <button id="btn-next-page" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg disabled:opacity-40">Siguiente</button>
-                    </div>
-                </div>
-
-            </div>
-        </section>
-
+      <section class="panel" aria-labelledby="feed-heading">
+        <div class="panel-head"><div><h2 id="feed-heading">Registro de eventos y mensajes</h2><p>Selecciona un registro para abrir su ficha y fuente primaria</p></div><span class="tag" id="feed-total">0 registros</span></div>
+        <div class="feed-tools">
+          <input class="field" id="search-events" type="search" placeholder="Buscar región, centro o texto…" aria-label="Buscar eventos">
+          <select class="field" id="filter-mag" aria-label="Magnitud mínima"><option value="0">Todas</option><option value="4.5" selected>M4.5+</option><option value="5">M5.0+</option><option value="6">M6.0+</option><option value="7">M7.0+</option></select>
+        </div>
+        <div class="feed-tabs" role="tablist" aria-label="Filtrar por tipo">
+          <button class="tab active" data-feed-filter="all" role="tab">Todos</button>
+          <button class="tab" data-feed-filter="quakes" role="tab">Sismos</button>
+          <button class="tab" data-feed-filter="messages" role="tab">Mensajes oficiales</button>
+        </div>
+        <div class="events-list" id="events-list" aria-live="polite"><div class="empty-state">Conectando con los catálogos y centros de monitoreo…</div></div>
+        <div class="pagination">
+          <span id="pagination-label">0 registros</span>
+          <div style="display:flex;gap:5px"><button class="btn btn-small" id="page-prev" disabled>Anterior</button><button class="btn btn-small" id="page-next" disabled>Siguiente</button></div>
+        </div>
+      </section>
     </main>
 
-    <!-- SECCIÓN INFERIOR: GENERADOR DE INFOGRAFÍA SOCIAL 1080x1350 PX -->
-    <section class="max-w-7xl mx-auto w-full px-4 mb-8">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
-            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-800">
-                <div>
-                    <h3 class="text-base font-bold text-white flex items-center gap-2">
-                        <i class="fa-solid fa-image text-cyan-400"></i>
-                        Generador de Infografía Social (1080 x 1350 px)
-                    </h3>
-                    <p class="text-xs text-slate-400">Exporta placas informativas oficiales listas para redes sociales con mapa de coordenadas incorporado.</p>
-                </div>
-                
-                <!-- Selector Manual de Evento para la Placa -->
-                <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                    <select id="select-event-for-social" class="bg-slate-950 border border-slate-700 text-xs rounded-xl px-3 py-2 text-slate-200 flex-1 md:w-80 font-medium">
-                        <!-- Opciones dinámicas -->
-                    </select>
-                    <button id="btn-render-social-card" class="bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-bold text-xs px-4 py-2 rounded-xl transition flex items-center gap-2 shadow-lg shadow-blue-600/20 whitespace-nowrap">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i> Generar Infografía HD
-                    </button>
-                </div>
-            </div>
-
-            <!-- Previsualización y Descarga de la Infografía -->
-            <div id="social-preview-drawer" class="hidden mt-4 pt-4 border-t border-slate-800 flex flex-col items-center">
-                <div class="flex items-center justify-between w-full max-w-md mb-3 text-xs">
-                    <span class="font-bold text-slate-300 flex items-center gap-1.5">
-                        <i class="fa-solid fa-expand text-blue-400"></i> Formato 4:5 (1080x1350 px)
-                    </span>
-                    <div class="flex items-center gap-2">
-                        <button id="btn-scroll-top-drawer" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
-                            <i class="fa-solid fa-arrow-up"></i> Volver Arriba
-                        </button>
-                        <button id="btn-download-social-png" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
-                            <i class="fa-solid fa-download"></i> Descargar PNG
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Canvas Render -->
-                <div class="w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl border border-slate-700 bg-slate-950">
-                    <canvas id="social-canvas-1080" width="1080" height="1350" class="w-full h-auto block"></canvas>
-                </div>
-
-                <!-- Botones de Navegación del Generador -->
-                <div class="mt-4 flex items-center justify-center gap-3 w-full max-w-md">
-                    <button id="btn-close-drawer-bottom" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-2.5 rounded-xl font-semibold transition flex items-center justify-center gap-2 border border-slate-700">
-                        <i class="fa-solid fa-xmark"></i> Cerrar Vista Previa
-                    </button>
-                    <button id="btn-return-dashboard-bottom" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs py-2.5 rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-md">
-                        <i class="fa-solid fa-table-columns"></i> Regresar al Dashboard
-                    </button>
-                </div>
-            </div>
+    <section class="lower-grid">
+      <section class="panel">
+        <div class="panel-head"><div><h2>Centros y portales oficiales</h2><p>Enlaces directos para contrastar los mensajes</p></div></div>
+        <div class="panel-body">
+          <div class="link-list">
+            <a class="link-pill" href="https://www.tsunami.gov/" target="_blank" rel="noopener">NOAA Tsunami.gov ↗</a>
+            <a class="link-pill" href="https://www.tsunami.gov/events/xml/PHEBAtom.xml" target="_blank" rel="noopener">PTWC Atom ↗</a>
+            <a class="link-pill" href="https://www.tsunami.gov/events/xml/PHEBCAP.xml" target="_blank" rel="noopener">PTWC CAP ↗</a>
+            <a class="link-pill" href="https://www.tsunami.gov/events/xml/PAAQAtom.xml" target="_blank" rel="noopener">NTWC Atom ↗</a>
+            <a class="link-pill" href="https://www.tsunami.gov/events/xml/PAAQCAP.xml" target="_blank" rel="noopener">NTWC CAP ↗</a>
+            <a class="link-pill" href="https://catac.ineter.gob.ni/" target="_blank" rel="noopener">CATAC / INETER ↗</a>
+            <a class="link-pill" href="https://www.data.jma.go.jp/developer/xml/feed/eqvol.xml" target="_blank" rel="noopener">JMA Atom PULL ↗</a>
+            <a class="link-pill" href="https://www.data.jma.go.jp/eqev/data/en/tsunami/tsunami_warning.html" target="_blank" rel="noopener">JMA Tsunami ↗</a>
+            <a class="link-pill" href="https://www.data.jma.go.jp/eqev/data/nwptac/" target="_blank" rel="noopener">NWPTAC ↗</a>
+            <a class="link-pill" href="https://www.snamchile.cl/" target="_blank" rel="noopener">SHOA / SNAM ↗</a>
+            <a class="link-pill" href="https://www.sinaproc.gob.pa/" target="_blank" rel="noopener">SINAPROC Panamá ↗</a>
+          </div>
+          <p class="small-note" style="margin:12px 0 0">JMA incorpora el feed Atom PULL oficial de alta frecuencia para detectar publicaciones relacionadas con tsunami; cada entrada debe contrastarse abriendo su XML original y no se clasifica automáticamente como alerta activa. CATAC, NWPTAC y SHOA se ofrecen como portales oficiales de consulta porque no se ha confirmado aquí un endpoint público de lectura directa desde navegador para esos centros. Consulte siempre la autoridad nacional correspondiente.</p>
         </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><div><h2>Exportador de ficha visual</h2><p>Imagen PNG 1080 × 1350 px · Epicentro/área con mapa satelital Esri cuando CORS lo permite</p></div><span class="tag blue">4:5 · HD</span></div>
+        <div class="panel-body">
+          <div class="generator-controls">
+            <select class="field" id="social-event-select" aria-label="Registro para exportar"><option value="">Sin registros disponibles</option></select>
+            <button class="btn btn-primary" id="generate-card">Generar imagen</button>
+          </div>
+          <p class="small-note" style="margin:9px 0 0">La imagen identifica claramente si el registro es un evento sísmico o un mensaje oficial. No se generan boletines ficticios ni se atribuyen alertas a centros que no las emitieron.</p>
+        </div>
+        <div class="preview-area" id="preview-area">
+          <div class="canvas-frame"><canvas id="social-canvas" width="1080" height="1350"></canvas></div>
+          <div class="preview-actions"><button class="btn" id="close-preview" style="flex:1">Cerrar vista previa</button><button class="btn btn-primary" id="download-png" style="flex:1">Descargar PNG</button></div>
+        </div>
+      </section>
     </section>
 
-    <!-- FLOATING RETURN BUTTON (Scroll navigation) -->
-    <button id="floating-return-btn" class="fixed bottom-6 left-6 z-40 bg-slate-900/90 hover:bg-slate-900 text-white text-xs px-4 py-2.5 rounded-full shadow-2xl border border-slate-700 flex items-center gap-2 transition backdrop-blur transform hover:scale-105 active:scale-95">
-        <i class="fa-solid fa-arrow-up text-blue-400"></i>
-        <span class="font-bold">Subir al Mapa / Dashboard</span>
-    </button>
+    <footer class="footer">
+      <span><strong>TsunamiGuard v2.0</strong> · Herramienta de observación independiente; no es un sistema oficial de alerta.</span>
+      <span id="footer-data-status">Esperando datos.</span>
+    </footer>
+  </div>
 
-    <!-- MODAL DE CONFIGURACIÓN DE VOZ Y NOTIFICACIONES -->
-    <div id="modal-audio-settings" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-                <h3 class="font-bold text-white text-base flex items-center gap-2">
-                    <i class="fa-solid fa-bullhorn text-blue-400"></i>
-                    Ajustes de Notificaciones y Voz
-                </h3>
-                <button id="btn-close-audio-modal" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
-            </div>
-
-            <div class="space-y-3">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-300 mb-1">Selector de Voz (Web Speech API)</label>
-                    <select id="audio-voice-select" class="w-full bg-slate-950 border border-slate-700 text-xs rounded-xl p-2.5 text-slate-200">
-                        <!-- Lista de voces del navegador -->
-                    </select>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1">Velocidad (Rate)</label>
-                        <input type="range" id="audio-rate" min="0.5" max="1.5" step="0.1" value="1.0" class="w-full accent-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1">Tono (Pitch)</label>
-                        <input type="range" id="audio-pitch" min="0.5" max="1.5" step="0.1" value="1.0" class="w-full accent-blue-500">
-                    </div>
-                </div>
-
-                <div class="pt-2 border-t border-slate-800 space-y-2">
-                    <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer p-2 rounded-lg bg-slate-950 border border-slate-800">
-                        <span>Alerta por Sintesis de Voz</span>
-                        <input type="checkbox" id="chk-voice-enabled" checked class="accent-blue-500">
-                    </label>
-                    <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer p-2 rounded-lg bg-slate-950 border border-slate-800">
-                        <span>Sirena Acústica de Emergencia</span>
-                        <input type="checkbox" id="chk-siren-enabled" checked class="accent-blue-500">
-                    </label>
-                </div>
-
-                <button id="btn-test-voice" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs py-2 rounded-xl transition flex items-center justify-center gap-2 border border-slate-700">
-                    <i class="fa-solid fa-volume-high"></i> Probar Voz Seleccionada
-                </button>
-            </div>
+  <!-- Modal de detalle -->
+  <div class="modal-backdrop" id="detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+    <div class="modal">
+      <div class="modal-head"><div><span class="tag blue" id="detail-kind">REGISTRO</span> <span class="tag" id="detail-source">FUENTE</span></div><button class="btn btn-icon" data-close-modal="detail-modal" aria-label="Cerrar">×</button></div>
+      <div class="modal-body">
+        <div><h3 id="detail-title" style="margin:0 0 5px;font-size:18px">Detalle del registro</h3><div class="small-note" id="detail-subtitle"></div></div>
+        <div class="detail-grid" id="detail-grid"></div>
+        <div><div class="detail-label" style="margin-bottom:6px">Contenido recibido de la fuente</div><div class="detail-text" id="detail-description"></div></div>
+        <div id="detail-instruction-wrap" style="display:none"><div class="detail-label" style="margin-bottom:6px">Instrucciones incluidas en el mensaje</div><div class="detail-text" id="detail-instruction"></div></div>
+        <div class="modal-actions">
+          <a class="btn btn-primary" id="detail-source-link" href="https://www.tsunami.gov/" target="_blank" rel="noopener">Abrir fuente primaria ↗</a>
+          <button class="btn" id="share-whatsapp">WhatsApp</button><button class="btn" id="share-telegram">Telegram</button><button class="btn" id="copy-summary">Copiar ficha</button>
         </div>
+      </div>
     </div>
+  </div>
 
-    <!-- MODAL DETALLE DEL EVENTO & BOLETÍN -->
-    <div id="modal-event-detail" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
-            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-                <div class="flex items-center gap-2">
-                    <span id="modal-event-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-600 text-white">ADVERTENCIA</span>
-                    <span id="modal-event-agency" class="text-xs font-mono text-cyan-400 font-bold">USGS</span>
-                </div>
-                <button id="btn-close-event-modal" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
-            </div>
-
-            <div class="space-y-3">
-                <h3 id="modal-event-title" class="font-extrabold text-white text-lg leading-snug">Sismo M 7.2 en Costa Pacífica</h3>
-                
-                <div class="grid grid-cols-2 gap-2 text-xs bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <div><span class="text-slate-400">Magnitud:</span> <strong id="modal-event-mag" class="text-white text-sm">7.2 Mwd</strong></div>
-                    <div><span class="text-slate-400">Profundidad:</span> <strong id="modal-event-depth" class="text-white">15.0 km</strong></div>
-                    <div class="col-span-2"><span class="text-slate-400">Fecha y Hora UTC:</span> <strong id="modal-event-time" class="text-slate-200 font-mono">2026-11-07 12:38:00 UTC</strong></div>
-                    <div class="col-span-2"><span class="text-slate-400">Coordenadas:</span> <strong id="modal-event-coords" class="text-slate-200 font-mono">0.00°, 0.00°</strong></div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1 uppercase tracking-wider">Boletín Oficial Emitido:</label>
-                    <div id="modal-event-bulletin" class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed max-h-40 overflow-y-auto font-mono">
-                        <!-- Texto del boletín -->
-                    </div>
-                </div>
-
-                <!-- Opciones de Compartir Datos -->
-                <div class="pt-2 border-t border-slate-800">
-                    <label class="block text-xs font-semibold text-slate-400 mb-2">Compartir Ficha del Evento:</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button id="btn-share-whatsapp" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-2 rounded-xl transition flex items-center justify-center gap-1.5 shadow-md">
-                            <i class="fa-brands fa-whatsapp text-sm"></i> WhatsApp
-                        </button>
-                        <button id="btn-share-telegram" class="bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs py-2 rounded-xl transition flex items-center justify-center gap-1.5 shadow-md">
-                            <i class="fa-brands fa-telegram text-sm"></i> Telegram
-                        </button>
-                        <button id="btn-copy-summary" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs py-2 rounded-xl transition flex items-center justify-center gap-1.5 border border-slate-700">
-                            <i class="fa-regular fa-copy text-sm"></i> Copiar
-                        </button>
-                    </div>
-                </div>
-            </div>
+  <!-- Modal de configuración -->
+  <div class="modal-backdrop" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal" style="max-width:540px">
+      <div class="modal-head"><h3 id="settings-title">Preferencias de actualización y audio</h3><button class="btn btn-icon" data-close-modal="settings-modal" aria-label="Cerrar">×</button></div>
+      <div class="modal-body">
+        <label class="settings-row"><span><strong>Actualización automática</strong><small>Consulta los feeds en segundo plano mientras la pestaña está abierta.</small></span><input type="checkbox" id="auto-refresh" checked></label>
+        <label class="settings-row"><span><strong>Frecuencia</strong><small>Intervalo entre consultas automáticas.</small></span><select class="field" id="refresh-interval" style="width:110px"><option value="60000">1 minuto</option><option value="120000" selected>2 minutos</option><option value="300000">5 minutos</option><option value="600000">10 minutos</option></select></label>
+        <div class="section-kicker" style="margin:4px 0 0">Notificaciones sonoras</div>
+        <label class="settings-row"><span><strong>Lectura de nuevos mensajes oficiales</strong><small>La síntesis de voz puede depender de las voces instaladas en el navegador.</small></span><input type="checkbox" id="voice-enabled"></label>
+        <label class="settings-row"><span><strong>Sirena acústica</strong><small>Solo para nuevos mensajes CAP de tsunami clasificados como warning/watch/advisory.</small></span><input type="checkbox" id="siren-enabled"></label>
+        <div><label class="detail-label" for="voice-select">Voz de lectura</label><select class="field" id="voice-select" style="margin-top:5px"><option value="">Voz predeterminada del navegador</option></select></div>
+        <div class="range-row">
+          <label>Velocidad <strong id="rate-value">1.0×</strong><input type="range" id="voice-rate" min="0.7" max="1.3" step="0.1" value="1"></label>
+          <label>Tono <strong id="pitch-value">1.0</strong><input type="range" id="voice-pitch" min="0.7" max="1.3" step="0.1" value="1"></label>
         </div>
+        <div class="modal-actions"><button class="btn btn-primary" id="activate-audio">Activar audio en este navegador</button><button class="btn" id="test-voice">Probar voz</button><button class="btn" id="test-siren">Probar sirena</button></div>
+        <p class="small-note" id="audio-status">El audio está desactivado hasta que el usuario lo habilite en esta sesión. Los navegadores pueden bloquear reproducción automática.</p>
+      </div>
     </div>
+  </div>
 
-    <!-- TOAST NOTIFICATION CONTAINER -->
-    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
-    <!-- SCRIPT PRINCIPAL DE LÓGICA INTERACTIVA -->
-    <script>
-        // ESTADO GLOBAL DE LA APLICACIÓN
-        const STATE = {
-            events: [],
-            filteredEvents: [],
-            currentPage: 1,
-            pageSize: 25,
-            selectedEvent: null,
-            map: null,
-            markers: [],
-            tectonicLayer: null,
-            activeBaseLayer: 'esri-ocean',
-            voices: [],
-            selectedVoice: null
-        };
+  <script>
+  (() => {
+    'use strict';
 
-        // LISTA OFICIAL DE AGENCIAS DE MONITOREO CON ENDPOINTS DE VERIFICACIÓN
-        const AGENCIES = [
-            { code: 'USGS', name: 'USGS (EE.UU.)', url: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson', online: true },
-            { code: 'PTWC', name: 'PTWC (Pacífico)', url: 'https://www.tsunami.gov/', online: true },
-            { code: 'NTWC', name: 'NTWC (N.América)', url: 'https://www.tsunami.gov/', online: true },
-            { code: 'NWPTAC', name: 'NWPTAC (Japón)', url: 'https://www.data.jma.go.jp/svd/eqev/data/nwptac/', online: true },
-            { code: 'CATAC', name: 'CATAC (Cent.América)', url: 'https://catac.ineter.gob.ni/', online: true },
-            { code: 'JMA', name: 'JMA (Japón)', url: 'https://www.jma.go.jp/', online: true },
-            { code: 'INGV', name: 'INGV (Italia)', url: 'https://webservices.ingv.it/fdsnws/event/1/query?format=geojson&limit=1', online: true },
-            { code: 'SHOA', name: 'SHOA (Chile)', url: 'https://www.snamchile.cl/', online: true }
-        ];
+    const CONFIG = {
+      usgsUrl: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson',
+      ingvUrl: 'https://webservices.ingv.it/fdsnws/event/1/query?format=geojson&minmag=4.5&limit=50&orderby=time',
+      tectonicUrl: 'https://raw.githubusercontent.com/fraixedes/tectonicplates/master/GeoJSON/PB2002_boundaries.json',
+      requestTimeoutMs: 14000,
+      pageSize: 20,
+      mapMarkerLimit: 500,
+      storageKey: 'tsunamiguard.v2.settings',
+      seenKey: 'tsunamiguard.v2.seen-cap'
+    };
 
-        // INICIALIZACIÓN AL CARGAR LA PÁGINA
-        window.onload = function() {
-            initClock();
-            verifyAgenciesConnections();
-            initVoices();
-            initMap();
-            fetchAllAgenciesData();
-            setupEventListeners();
-        };
+    const SOURCES = [
+      {code:'USGS', name:'USGS Earthquake Feed', kind:'feed', description:'Catálogo sísmico global', url:CONFIG.usgsUrl},
+      {code:'INGV', name:'INGV FDSN', kind:'feed', description:'Catálogo sísmico italiano', url:CONFIG.ingvUrl},
+      {code:'PTWC', name:'Pacific Tsunami Warning Center', kind:'center', description:'Atom + CAP · NOAA', url:'https://www.tsunami.gov/', atom:'https://www.tsunami.gov/events/xml/PHEBAtom.xml', cap:'https://www.tsunami.gov/events/xml/PHEBCAP.xml'},
+      {code:'NTWC', name:'National Tsunami Warning Center', kind:'center', description:'Atom + CAP · NOAA', url:'https://www.tsunami.gov/', atom:'https://www.tsunami.gov/events/xml/PAAQAtom.xml', cap:'https://www.tsunami.gov/events/xml/PAAQCAP.xml'},
+      {code:'JMA', name:'Japan Meteorological Agency', kind:'jma', description:'Atom PULL · avisos sísmicos / tsunami', url:'https://xml.kishou.go.jp/xmlpull.html', atom:'https://www.data.jma.go.jp/developer/xml/feed/eqvol.xml'},
+      {code:'CATAC', name:'Centro de Asesoramiento de Tsunami', kind:'portal', description:'INETER · América Central', url:'https://catac.ineter.gob.ni/'},
+      {code:'NWPTAC', name:'Northwest Pacific Tsunami Advisory Center', kind:'portal', description:'JMA · Pacífico noroccidental', url:'https://www.data.jma.go.jp/eqev/data/nwptac/'},
+      {code:'SHOA', name:'Servicio Hidrográfico y Oceanográfico', kind:'portal', description:'SNAM · Chile', url:'https://www.snamchile.cl/'}
+    ];
 
-        // NOTIFICACIÓN VISUAL TOAST (Sin alert)
-        function showToast(title, message, type = 'info') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            const borderCol = type === 'alert' ? 'border-red-500' : type === 'success' ? 'border-emerald-500' : 'border-blue-500';
-            toast.className = `bg-slate-900/95 border-l-4 ${borderCol} border border-slate-700 text-white px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md max-w-sm pointer-events-auto transition-all duration-300 transform translate-y-0`;
-            toast.innerHTML = `
-                <div class="font-bold text-xs text-cyan-400">${title}</div>
-                <div class="text-xs text-slate-200 mt-0.5">${message}</div>
-            `;
-            container.appendChild(toast);
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                setTimeout(() => toast.remove(), 300);
-            }, 4500);
+    const STATE = {
+      quakes: [], officialMessages: [], centerData: {PTWC:[], NTWC:[], JMA:[]},
+      sourceStatus: {}, filter:'all', page:1, selected:null, map:null,
+      quakeMarkers:[], alertLayers:[], tectonicLayer:null, baseLayers:{},
+      refreshing:false, initialized:false, refreshTimer:null, lastRefresh:0, consecutiveFailures:0, retryDelay:30000,
+      seenIds:new Set(), centerBaseline:{PTWC:false,NTWC:false}, centerCapReadable:{PTWC:false,NTWC:false},
+      audioContext:null, audioUnlocked:false, voices:[],
+      settings:{theme:'dark',autoRefresh:true,refreshInterval:120000,voiceEnabled:false,sirenEnabled:false,voiceName:'',rate:1,pitch:1}
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const safeStore = {
+      get(key){try{return localStorage.getItem(key)}catch(_){return null}},
+      set(key,value){try{localStorage.setItem(key,value)}catch(_){}}
+    };
+    const esc = (value) => String(value ?? '');
+    const asDate = (value) => {const d = new Date(value); return Number.isNaN(d.getTime()) ? null : d;};
+    const fmtUTC = (value) => {const d = value instanceof Date ? value : asDate(value); return d ? d.toISOString().replace('T',' ').slice(0,19)+' UTC' : 'Hora no disponible';};
+    const fmtLocal = (value) => {const d = value instanceof Date ? value : asDate(value); return d ? d.toLocaleString('es-PA',{dateStyle:'medium',timeStyle:'short'}) : '—';};
+    const num = (value, digits=1) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : '—';
+    const makeEl = (tag, cls, text) => {const el=document.createElement(tag); if(cls) el.className=cls; if(text!==undefined) el.textContent=text; return el;};
+
+    function loadSettings(){
+      try{const saved=JSON.parse(safeStore.get(CONFIG.storageKey)||'{}'); if(saved&&typeof saved==='object') STATE.settings={...STATE.settings,...saved};}catch(_){ }
+      if(!['dark','light','system'].includes(STATE.settings.theme)) STATE.settings.theme='dark';
+    }
+    function saveSettings(){safeStore.set(CONFIG.storageKey,JSON.stringify(STATE.settings));}
+    function prefersDark(){return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;}
+    function setTheme(theme){
+      STATE.settings.theme=theme; document.documentElement.dataset.theme=theme==='system'?(prefersDark()?'dark':'light'):theme;
+      document.querySelectorAll('[data-theme-choice]').forEach(b=>b.classList.toggle('active',b.dataset.themeChoice===theme));
+      saveSettings();
+    }
+    function initClock(){
+      const tick=()=>{$('utc-clock').textContent=new Date().toISOString().slice(11,19)+' UTC';}; tick(); setInterval(tick,1000);
+    }
+    function toast(title,message,type='info'){
+      const box=makeEl('div','toast'+(type==='alert'?' alert':type==='success'?' success':''));
+      box.append(makeEl('strong','',title),makeEl('span','',message)); $('toast-container').append(box);
+      setTimeout(()=>{box.style.opacity='0';box.style.transform='translateY(6px)';setTimeout(()=>box.remove(),220)},5200);
+    }
+    function timeoutSignal(ms){const c=new AbortController();const timer=setTimeout(()=>c.abort(),ms);return {signal:c.signal,clear:()=>clearTimeout(timer)};}
+    async function fetchResponse(url, ms=CONFIG.requestTimeoutMs){
+      const t=timeoutSignal(ms);
+      try{const response=await fetch(url,{method:'GET',mode:'cors',cache:'no-store',credentials:'omit',signal:t.signal,headers:{'Accept':'application/json, application/atom+xml, application/xml, text/xml, */*'}});if(!response.ok)throw new Error(`HTTP ${response.status}`);return response;}
+      catch(error){if(error.name==='AbortError')throw new Error('Tiempo de espera agotado');if(error instanceof TypeError)throw new Error('Red/CORS: el navegador no pudo leer el recurso');throw error;}
+      finally{t.clear();}
+    }
+    function setSourceStatus(code,status,message=''){
+      const previous=STATE.sourceStatus[code]||{};
+      const now=Date.now();
+      STATE.sourceStatus[code]={...previous,status,message,checked:now,lastSuccess:status==='ok'?now:(previous.lastSuccess||null)};
+      const card=$('source-'+code); if(!card)return;
+      const state=card.querySelector('.source-state'), meta=card.querySelector('.source-meta');
+      state.className='source-state '+(status==='ok'?'ok':status==='error'?'err':status==='cors'?'warn':'portal');
+      state.textContent=status==='ok'?'CONECTADO':status==='error'?'REINTENTO':status==='cors'?'NO VERIFICABLE':'PORTAL';
+      const last=STATE.sourceStatus[code].lastSuccess;
+      meta.textContent=status==='ok'?(message||'Lectura confirmada'):((message||'Sin lectura')+(last?' · OK '+new Date(last).toLocaleTimeString('es-PA'):' · sin lectura previa'));
+    }
+    function renderSourceCards(){
+      const grid=$('source-grid');grid.replaceChildren();
+      for(const s of SOURCES){
+        const card=makeEl('a','source-card');card.id='source-'+s.code;card.href=s.url;card.target='_blank';card.rel='noopener';
+        const top=makeEl('div','source-top');top.append(makeEl('span','source-code',s.code));
+        const state=makeEl('span','source-state '+(s.kind==='portal'?'portal':''),s.kind==='portal'?'PORTAL':'PENDIENTE');top.append(state);
+        card.append(top,makeEl('div','source-desc',s.description),makeEl('div','source-meta',s.kind==='portal'?'Acceso al portal oficial':'Pendiente de consulta'));grid.append(card);
+        if(s.kind==='portal') setSourceStatus(s.code,'portal','Portal oficial · sin API integrada');
+      }
+    }
+
+    function normalizeQuake(feature, source){
+      const p=feature?.properties||{}, g=feature?.geometry;
+      if(!g||g.type!=='Point'||!Array.isArray(g.coordinates)||g.coordinates.length<2)return null;
+      const lon=Number(g.coordinates[0]),lat=Number(g.coordinates[1]),depth=Number(g.coordinates[2]);
+      const mag=Number(p.mag);
+      if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat < -90||lat>90||lon < -180||lon>180||!Number.isFinite(mag))return null;
+      const time=Number(p.time); if(!Number.isFinite(time))return null;
+      const id=String(feature.id||`${source}-${time}-${lat}-${lon}`);
+      return {
+        id:`quake-${source}-${id}`,recordType:'quake',title:String(p.place||'Ubicación no especificada'),
+        magnitude:mag,magnitudeType:String(p.magType||''),depth:Number.isFinite(depth)?depth:null,
+        time,coords:[lat,lon],source,sourceLabel:source==='USGS'?'USGS':'INGV',
+        detailUrl:String(p.url||p.detail|| (source==='USGS'?'https://earthquake.usgs.gov/earthquakes/':'https://www.ingv.it/')),
+        status:String(p.status||'unknown'),tsunamiFlag:source==='USGS'&&Number(p.tsunami)===1,
+        significance:Number(p.sig)||0,description:source==='USGS'&&Number(p.tsunami)===1?'El catálogo USGS marca este evento con su indicador tsunami=1. Este atributo no es por sí mismo un mensaje de advertencia de un centro de tsunami.':'Evento sísmico procedente del catálogo de la fuente indicada.'
+      };
+    }
+    async function loadUSGS(){
+      try{
+        const res=await fetchResponse(CONFIG.usgsUrl);const data=await res.json();
+        if(!data||!Array.isArray(data.features))throw new Error('La respuesta USGS no contiene una colección GeoJSON válida');
+        const events=data.features.map(f=>normalizeQuake(f,'USGS')).filter(Boolean);
+        setSourceStatus('USGS','ok',`${events.length} eventos · ${fmtLocal(Date.now())}`);return events;
+      }catch(e){setSourceStatus('USGS',e.message.includes('CORS')?'cors':'error',e.message);throw e;}
+    }
+    async function loadINGV(){
+      try{
+        const res=await fetchResponse(CONFIG.ingvUrl);const data=await res.json();
+        if(!data||!Array.isArray(data.features))throw new Error('La respuesta INGV no contiene una colección GeoJSON válida');
+        const events=data.features.map(f=>normalizeQuake(f,'INGV')).filter(Boolean);
+        setSourceStatus('INGV','ok',`${events.length} eventos · ${fmtLocal(Date.now())}`);return events;
+      }catch(e){setSourceStatus('INGV',e.message.includes('CORS')?'cors':'error',e.message);throw e;}
+    }
+
+    function localChildren(node,name){return Array.from(node?.children||[]).filter(e=>e.localName?.toLowerCase()===name.toLowerCase());}
+    function directText(node,name){const el=localChildren(node,name)[0];return el?.textContent?.trim()||'';}
+    function allElementsByLocalName(doc,name){return Array.from(doc.getElementsByTagName('*')).filter(e=>e.localName?.toLowerCase()===name.toLowerCase());}
+    function parseGeoAreas(info){
+      const areas=localChildren(info,'area');const out=[];
+      for(const area of areas){
+        const desc=directText(area,'areaDesc');
+        for(const raw of localChildren(area,'polygon')){
+          const pts=raw.textContent.trim().split(/\s+/).map(pair=>pair.split(',').map(Number)).filter(v=>v.length>=2&&Number.isFinite(v[0])&&Number.isFinite(v[1])&&Math.abs(v[0])<=90&&Math.abs(v[1])<=180).map(v=>[v[0],v[1]]);
+          if(pts.length>=3)out.push({type:'polygon',points:pts,label:desc});
         }
-
-        // RELOJ UTC EN VIVO
-        function initClock() {
-            const clockEl = document.getElementById('live-utc-clock');
-            setInterval(() => {
-                const now = new Date();
-                clockEl.textContent = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
-            }, 1000);
+        for(const raw of localChildren(area,'circle')){
+          const parts=raw.textContent.trim().split(/\s+/),ll=(parts[0]||'').split(',').map(Number),radius=Number(parts[1]);
+          if(ll.length>=2&&Number.isFinite(ll[0])&&Number.isFinite(ll[1])&&Number.isFinite(radius)&&radius>0&&Math.abs(ll[0])<=90&&Math.abs(ll[1])<=180)out.push({type:'circle',center:[ll[0],ll[1]],radiusKm:radius,label:desc});
         }
-
-        // VERIFICACIÓN REAL DE CONEXIÓN CON AGENCIAS EMISORAS
-        async function verifyAgenciesConnections() {
-            const grid = document.getElementById('agencies-status-grid');
-            grid.innerHTML = '';
-            let onlineCount = 0;
-
-            const checks = AGENCIES.map(async (ag) => {
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 4000);
-                    await fetch(ag.url, { mode: 'no-cors', signal: controller.signal });
-                    clearTimeout(timeoutId);
-                    ag.online = true;
-                    onlineCount++;
-                } catch (e) {
-                    ag.online = true; // Fallback activo por políticas CORS de navegadores
-                    onlineCount++;
-                }
-
-                const div = document.createElement('div');
-                div.className = 'bg-slate-950 border border-slate-800 px-2 py-1.5 rounded-lg flex items-center justify-between text-[10px]';
-                div.title = `${ag.name} - Conectado y Monitoreando`;
-                div.innerHTML = `
-                    <span class="font-bold text-slate-200">${ag.code}</span>
-                    <span class="flex items-center gap-1 text-emerald-400 font-mono text-[9px]">
-                        <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>OK
-                    </span>
-                `;
-                grid.appendChild(div);
-            });
-
-            await Promise.all(checks);
-            document.getElementById('metric-agencies-online').textContent = `${onlineCount} / ${AGENCIES.length}`;
+      }
+      return out;
+    }
+    function classifyMessage(eventText,headline,description){
+      const t=`${eventText} ${headline} ${description}`.toLowerCase();
+      if(/major tsunami warning|tsunami warning|advertencia de tsunami|aviso de tsunami/.test(t))return {level:'WARNING',label:'Warning',color:'red',threat:true};
+      if(/tsunami advisory|tsunami advisory|advisory|aviso preventivo/.test(t))return {level:'ADVISORY',label:'Advisory',color:'orange',threat:true};
+      if(/tsunami watch|vigilancia de tsunami/.test(t))return {level:'WATCH',label:'Watch',color:'yellow',threat:true};
+      if(/tsunami threat|amenaza de tsunami/.test(t))return {level:'THREAT',label:'Threat',color:'red',threat:true};
+      if(/information statement|informational message|informativo/.test(t))return {level:'INFORMATION',label:'Information',color:'blue',threat:false};
+      return {level:'MESSAGE',label:'Mensaje oficial',color:'blue',threat:false};
+    }
+    function parseCAP(xmlText,center){
+      const doc=new DOMParser().parseFromString(xmlText,'application/xml');
+      if(doc.querySelector('parsererror'))throw new Error('XML CAP no válido');
+      let alerts=allElementsByLocalName(doc,'alert');
+      if(doc.documentElement?.localName?.toLowerCase()==='alert')alerts=[doc.documentElement];
+      const out=[];
+      for(const alert of alerts){
+        const identifier=directText(alert,'identifier')||`${center}-${directText(alert,'sent')}`;
+        const sender=directText(alert,'senderName')||directText(alert,'sender')||center;
+        const sent=asDate(directText(alert,'sent'))?.getTime()||Date.now();
+        const msgType=directText(alert,'msgType')||'Alert';
+        const status=directText(alert,'status')||'Unknown';
+        const scope=directText(alert,'scope')||'Public';
+        const refs=directText(alert,'references');
+        const infos=localChildren(alert,'info');
+        for(let i=0;i<Math.max(1,infos.length);i++){
+          const info=infos[i]||alert;
+          const eventName=directText(info,'event')||'Tsunami message';
+          const headline=directText(info,'headline')||eventName;
+          const description=directText(info,'description')||directText(info,'instruction')||'';
+          const instruction=directText(info,'instruction');
+          const webUrl=directText(info,'web');
+          const expires=asDate(directText(info,'expires'))?.getTime()||null;
+          const category=classifyMessage(eventName,headline);
+          const cancelled=msgType.toLowerCase()==='cancel';
+          const actual=status.toLowerCase()==='actual';
+          const expired=expires!==null&&expires<Date.now();
+          const active=actual&&!cancelled&&!expired&&category.threat;
+          const areas=parseGeoAreas(info);
+          out.push({
+            id:`cap-${identifier}-${i}`,recordType:'message',messageFormat:'CAP',title:headline,source:center,sourceLabel:`${center} · NOAA`,
+            time:sent,expires,msgType,status,scope,eventName,level:cancelled?'CANCELLED':category.level,levelLabel:cancelled?'Cancelado':category.label,
+            color:cancelled?'green':category.color,active,actual,expired,cancelled,description,instruction,areas,
+            detailUrl:webUrl||'https://www.tsunami.gov/',references:refs
+          });
         }
-        // CARGA DE DATOS REALES VIGENTES DE AGENCIAS (USGS + INGV + ASIGNACIÓN REGIONAL DE CENTROS DE TSUNAMI)
-        async function fetchAllAgenciesData() {
-            showRefreshSpin(true);
-            try {
-                const [usgsRes, ingvRes] = await Promise.allSettled([
-                    fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson'),
-                    fetch('https://webservices.ingv.it/fdsnws/event/1/query?format=geojson&minmag=4.5&limit=15')
-                ]);
+      }
+      return out;
+    }
+    function parseAtom(xmlText,center){
+      const doc=new DOMParser().parseFromString(xmlText,'application/xml');
+      if(doc.querySelector('parsererror'))throw new Error('XML Atom no válido');
+      const entries=allElementsByLocalName(doc,'entry');
+      return entries.map((entry,index)=>{
+        const title=directText(entry,'title')||'Mensaje del centro de tsunami';
+        const id=directText(entry,'id')||`${center}-${index}-${directText(entry,'updated')}`;
+        const updated=asDate(directText(entry,'updated')||directText(entry,'published'))?.getTime()||Date.now();
+        const summary=directText(entry,'summary')||directText(entry,'content')||'';
+        const links=localChildren(entry,'link');
+        const link=links.find(x=>(x.getAttribute('rel')||'alternate')==='alternate')||links[0];
+        const href=link?.getAttribute('href')||'https://www.tsunami.gov/';
+        const category=classifyMessage(title,title,summary);
+        return {id:`atom-${center}-${id}`,recordType:'message',messageFormat:'ATOM',title,source:center,sourceLabel:center==='JMA'?'JMA · Japan Meteorological Agency':`${center} · NOAA`,time:updated,
+          level:category.level,levelLabel:category.label,color:category.color,active:false,actual:true,expired:false,cancelled:false,
+          description:summary,instruction:'',areas:[],detailUrl:href,feedOnly:true,msgType:'Publicación Atom'};
+      });
+    }
+    async function loadCenter(center){
+      const source=SOURCES.find(s=>s.code===center);const results=await Promise.allSettled([
+        fetchResponse(source.cap).then(r=>r.text()).then(t=>parseCAP(t,center)),
+        fetchResponse(source.atom).then(r=>r.text()).then(t=>parseAtom(t,center))
+      ]);
+      const capOK=results[0].status==='fulfilled',atomOK=results[1].status==='fulfilled';
+      if(!capOK&&!atomOK){
+        const err=results.find(x=>x.status==='rejected')?.reason||new Error('No se pudo consultar el centro');
+        const status=String(err.message||'').includes('CORS')?'cors':'error';setSourceStatus(center,status,err.message||'Sin respuesta');throw err;
+      }
+      const caps=capOK?results[0].value:[];const atoms=atomOK?results[1].value:[];
+      const capKeys=new Set(caps.map(x=>`${x.title.toLowerCase()}|${Math.floor(x.time/60000)}`));
+      const filteredAtoms=atoms.filter(x=>!capKeys.has(`${x.title.toLowerCase()}|${Math.floor(x.time/60000)}`));
+      const combined=[...caps,...filteredAtoms].sort((a,b)=>b.time-a.time);
+      STATE.centerData[center]=combined;
+      STATE.centerCapReadable[center]=capOK;
+      const label=capOK&&atomOK?'CAP + Atom':capOK?'CAP leído':'Atom leído';
+      setSourceStatus(center,'ok',`${label} · ${combined.length} mensajes`);
+      return combined;
+    }
 
-                let combinedEvents = [];
+    async function loadJMA(){
+      const source=SOURCES.find(s=>s.code==='JMA');
+      try{
+        const response=await fetchResponse(source.atom);
+        const xml=await response.text();
+        const parsed=parseAtom(xml,'JMA');
+        // The high-frequency JMA feed mixes seismic, volcanic and tsunami products.
+        // Keep tsunami-related entries only; these are publications, not a decoded active warning.
+        const messages=parsed.filter(m=>/津波|tsunami/i.test(`${m.title} ${m.description||''}`)).map(m=>({
+          ...m, messageFormat:'JMA XML / Atom PULL', level:'INFO', levelLabel:'Publicación JMA', color:'blue', active:false,
+          status:'Publicado en feed PULL', msgType:'Aviso JMA relacionado con tsunami',
+          description:[m.description||'', 'Este registro procede del feed Atom PULL de JMA. Abre el XML original para verificar el tipo de aviso, las zonas, la vigencia y cualquier cancelación. El título de una entrada Atom no se interpreta como una alerta activa.'].filter(Boolean).join('\n\n'),
+          instruction:'No se clasifica aquí como alerta activa. Consulta y confirma el mensaje XML original de JMA.',
+          detailUrl:m.detailUrl||'https://xml.kishou.go.jp/xmlpull.html', areas:[], active:false
+        }));
+        STATE.centerData.JMA=messages;
+        setSourceStatus('JMA','ok',`Atom PULL leído · ${messages.length} publicaciones de tsunami · ${fmtLocal(Date.now())}`);
+        return messages;
+      }catch(error){
+        setSourceStatus('JMA',String(error.message||'').includes('CORS')?'cors':'error',error.message||'No se pudo leer el feed JMA');
+        throw error;
+      }
+    }
 
-                // Procesar Feed USGS y asignar centro regional de alerta de tsunami correspondiente por coordenadas
-                if (usgsRes.status === 'fulfilled' && usgsRes.value.ok) {
-                    const data = await usgsRes.value.json();
-                    const usgsMapped = data.features.map(feat => {
-                        const mag = feat.properties.mag || 5.0;
-                        const title = feat.properties.place || 'Ubicación Desconocida';
-                        const time = new Date(feat.properties.time).toISOString().replace('T', ' ').substring(0, 19);
-                        const depth = feat.geometry.coordinates[2];
-                        const lat = feat.geometry.coordinates[1];
-                        const lon = feat.geometry.coordinates[0];
-                        const coords = [lat, lon];
+    function getOfficialMessages(){return [...STATE.centerData.PTWC,...STATE.centerData.NTWC,...STATE.centerData.JMA].sort((a,b)=>b.time-a.time);}
+    function isCurrentAlert(message,now=Date.now()){
+      const source=STATE.sourceStatus[message.source];
+      return message.recordType==='message'&&message.messageFormat==='CAP'&&message.active&&(!message.expires||message.expires>now)&&STATE.centerCapReadable[message.source]===true&&source?.status==='ok'&&(now-(source.checked||0)<10*60*1000);
+    }
+    function updateMetrics(){
+      const messages=getOfficialMessages();const now=Date.now();
+      const active=messages.filter(m=>isCurrentAlert(m,now));
+      $('stat-active-alerts').textContent=active.length;
+      $('stat-official-messages').textContent=messages.length;
+      $('stat-major-quakes').textContent=STATE.quakes.filter(q=>q.magnitude>=6).length;
+      const verified=['USGS','INGV','PTWC','NTWC','JMA'].filter(code=>STATE.sourceStatus[code]?.status==='ok').length;
+      $('stat-connected').textContent=`${verified}/5`;
+      $('feed-total').textContent=`${STATE.quakes.length+messages.length} registros`;
+      $('map-count').textContent=`${STATE.quakes.length+messages.filter(m=>m.areas?.length).length} elementos`;
+      $('footer-data-status').textContent=`USGS/INGV: ${STATE.quakes.length} sismos · PTWC/NTWC/JMA: ${messages.length} mensajes · ${fmtUTC(STATE.lastRefresh)}`;
+      const notice=$('system-notice');
+      const checkedCenters=['PTWC','NTWC'].filter(code=>STATE.centerCapReadable[code]===true&&STATE.sourceStatus[code]?.status==='ok').length;
+      if(active.length){notice.classList.add('warning');$('notice-title').textContent=`${active.length} mensaje(s) oficial(es) CAP de tsunami activo(s) recibido(s)`;$('notice-text').textContent='Verifica inmediatamente el alcance, vigencia, zonas y las instrucciones completas en el mensaje original del centro emisor. Este panel no sustituye las instrucciones de las autoridades locales.';}
+      else if(checkedCenters===2){notice.classList.remove('warning');$('notice-title').textContent='Sin mensajes CAP activos reconocidos en PTWC/NTWC';$('notice-text').textContent='Ambos feeds respondieron, pero este resultado no garantiza ausencia de amenaza. No cubre todos los centros regionales y no sustituye las alertas de SINAPROC ni de otras autoridades competentes.';}
+      else{notice.classList.add('warning');$('notice-title').textContent=`Verificación parcial de centros: ${checkedCenters}/2`; $('notice-text').textContent='No es posible confirmar el estado de los centros que no respondieron o cuyo acceso está limitado por CORS. Abre los portales oficiales antes de tomar decisiones.';}
+    }
 
-                        let tsunamiLevel = 'INFORMATIVO';
-                        if (feat.properties.tsunami === 1 || (mag >= 7.5 && depth < 70)) tsunamiLevel = 'ADVERTENCIA';
-                        else if (mag >= 6.8 && depth < 100) tsunamiLevel = 'VIGILANCIA';
-                        else if (mag >= 6.0) tsunamiLevel = 'INFORMATIVO';
-                        else tsunamiLevel = 'CANCELADO';
-
-                        // Determinar la agencia oficial emisora según la cuenca geográfica
-                        const agency = resolveResponsibleAgency(lat, lon, feat.properties.net);
-
-                        return {
-                            id: feat.id,
-                            title: title,
-                            magnitude: parseFloat(mag).toFixed(1),
-                            depth: parseFloat(depth).toFixed(1),
-                            time: time,
-                            coords: coords,
-                            agency: agency,
-                            status: feat.properties.status === 'reviewed' ? 'Revisado' : 'Preliminar',
-                            tsunamiLevel: tsunamiLevel,
-                            bulletin: generateBulletinText(tsunamiLevel, title, parseFloat(mag).toFixed(1), agency)
-                        };
-                    });
-                    combinedEvents = combinedEvents.concat(usgsMapped);
-                }
-
-                // Procesar Feed INGV (Mediterráneo / Europa)
-                if (ingvRes.status === 'fulfilled' && ingvRes.value.ok) {
-                    const ingvData = await ingvRes.value.json();
-                    if (ingvData.features) {
-                        const ingvMapped = ingvData.features.map(feat => {
-                            const mag = feat.properties.mag || 4.5;
-                            const title = feat.properties.place || 'Región Mediterránea';
-                            const time = new Date(feat.properties.time).toISOString().replace('T', ' ').substring(0, 19);
-                            const depth = feat.geometry.coordinates[2] || 10;
-                            const coords = [feat.geometry.coordinates[1], feat.geometry.coordinates[0]];
-                            const tsunamiLevel = mag >= 6.5 ? 'VIGILANCIA' : 'INFORMATIVO';
-
-                            return {
-                                id: 'ingv-' + (feat.id || Math.random()),
-                                title: title,
-                                magnitude: parseFloat(mag).toFixed(1),
-                                depth: parseFloat(depth).toFixed(1),
-                                time: time,
-                                coords: coords,
-                                agency: 'INGV',
-                                status: 'Revisado',
-                                tsunamiLevel: tsunamiLevel,
-                                bulletin: generateBulletinText(tsunamiLevel, title, parseFloat(mag).toFixed(1), 'INGV')
-                            };
-                        });
-                        combinedEvents = combinedEvents.concat(ingvMapped);
-                    }
-                }
-
-                // Ordenar por fecha más reciente
-                combinedEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
-                STATE.events = combinedEvents;
-                applyFilters();
-                updateStats();
-                
-                if (combinedEvents.length > 0) {
-                    showToast(`Sincronización Completada (${combinedEvents[0].agency})`, `Último evento: M ${combinedEvents[0].magnitude} - ${combinedEvents[0].title}`, 'success');
-                }
-            } catch (err) {
-                console.warn('Error al cargar datos en vivo:', err);
-                STATE.events = [];
-                applyFilters();
-            } finally {
-                showRefreshSpin(false);
-            }
+    async function refreshData(manual=false){
+      if(STATE.refreshing)return;STATE.refreshing=true;
+      $('btn-refresh').disabled=true;$('refresh-glyph').classList.add('spin');$('refresh-label').textContent='Consultando…';
+      const initial=STATE.initialized;
+      const tasks=await Promise.allSettled([loadUSGS(),loadINGV(),loadCenter('PTWC'),loadCenter('NTWC'),loadJMA()]);
+      const previousQuakes=STATE.quakes;
+      const usgsData=tasks[0].status==='fulfilled'?tasks[0].value:previousQuakes.filter(q=>q.source==='USGS');
+      const ingvData=tasks[1].status==='fulfilled'?tasks[1].value:previousQuakes.filter(q=>q.source==='INGV');
+      STATE.quakes=[...usgsData,...ingvData];
+      STATE.quakes.sort((a,b)=>b.time-a.time);
+      STATE.officialMessages=getOfficialMessages();STATE.lastRefresh=Date.now();STATE.initialized=true;
+      const newAlerts=[];
+      for(const center of ['PTWC','NTWC']){
+        if(!STATE.centerCapReadable[center])continue;
+        const capMessages=STATE.centerData[center].filter(m=>m.messageFormat==='CAP');
+        if(!STATE.centerBaseline[center]){
+          capMessages.forEach(m=>STATE.seenIds.add(m.id));
+          STATE.centerBaseline[center]=true;
+        }else{
+          for(const msg of capMessages){if(msg.active&&!STATE.seenIds.has(msg.id)&&isCurrentAlert(msg))newAlerts.push(msg);STATE.seenIds.add(msg.id);}
         }
+      }
+      if(newAlerts.length)notifyOfficialAlerts(newAlerts);
+      safeStore.set(CONFIG.seenKey,JSON.stringify([...STATE.seenIds].slice(-500)));
+      $('last-sync').textContent=`Actualizado ${new Date().toLocaleTimeString('es-PA',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}`;
+      $('btn-refresh').disabled=false;$('refresh-glyph').classList.remove('spin');$('refresh-label').textContent='Actualizar datos';STATE.refreshing=false;
+      updateMetrics();renderFeed();updateMap();
+      const success=tasks.filter(t=>t.status==='fulfilled').length;
+      STATE.consecutiveFailures=success===5?0:STATE.consecutiveFailures+1;
+      STATE.retryDelay=success===5?Number(STATE.settings.refreshInterval)||120000:Math.min(300000,30000*Math.pow(2,Math.min(STATE.consecutiveFailures-1,3)));
+      configureAutoRefresh();
+      if(manual)toast('Consulta finalizada',`${success}/5 fuentes consultables respondieron correctamente.`,success===5?'success':'info');
+      if(!success)toast('Sin conexión a fuentes','Se conserva la última información disponible, si existe. Revisa tu conexión y abre los portales oficiales.', 'alert');
+    }
 
-        // RESOLVER AGENCIA EMISORA SEGÚN CUENCA GEOGRÁFICA REAL
-        function resolveResponsibleAgency(lat, lon, net) {
-            if (lat >= -56 && lat <= -17 && lon >= -80 && lon <= -65) return 'SHOA (Chile)';
-            if (lat >= 7 && lat <= 19 && lon >= -93 && lon <= -77) return 'CATAC (América Central)';
-            if (lat >= 20 && lat <= 46 && lon >= 122 && lon <= 154) return 'NWPTAC / JMA (Japón)';
-            if (lat >= 30 && lat <= 65 && lon >= -170 && lon <= -115) return 'NTWC (Norteamérica)';
-            if (lat >= 34 && lat <= 48 && lon >= 6 && lon <= 20) return 'INGV (Mediterráneo)';
-            if (lon < -70 || lon > 110) return 'PTWC / USGS';
-            return net ? `USGS (${net.toUpperCase()})` : 'PTWC';
+    function notifyOfficialAlerts(alerts){
+      const highest=alerts[0];toast('Nuevo mensaje oficial de tsunami',`${highest.source}: ${highest.title}`,'alert');
+      const text=alerts.map(m=>`${m.source}. ${m.levelLabel}. ${m.title}. ${m.description}`).join('. ');
+      if(STATE.settings.voiceEnabled)speak(text);
+      if(STATE.settings.sirenEnabled)playSiren();
+    }
+
+    function loadSeen(){try{const a=JSON.parse(safeStore.get(CONFIG.seenKey)||'[]');if(Array.isArray(a))STATE.seenIds=new Set(a.map(String));}catch(_){STATE.seenIds=new Set();}}
+
+    function initMap(){
+      if(!window.L){const msg=makeEl('div','empty-state','No se pudo cargar Leaflet. Comprueba la conexión a Internet y recarga el panel.');$('map').replaceChildren(msg);return;}
+      STATE.map=L.map('map',{zoomControl:true,preferCanvas:true,worldCopyJump:true}).setView([12, -35],2);
+      L.control.scale({imperial:false,metric:true}).addTo(STATE.map);
+      const base={
+        satellite:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'Tiles © Esri'}),
+        ocean:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:13,attribution:'Tiles © Esri'}),
+        topo:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:17,attribution:'Tiles © Esri'}),
+        dark:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,attribution:'Tiles © Esri'})
+      };
+      STATE.baseLayers=base;base.satellite.addTo(STATE.map);
+      document.querySelectorAll('[data-map-layer]').forEach(btn=>btn.addEventListener('click',()=>{
+        const key=btn.dataset.mapLayer;if(!base[key])return;
+        Object.values(base).forEach(layer=>{if(STATE.map.hasLayer(layer))STATE.map.removeLayer(layer);});
+        base[key].addTo(STATE.map);document.querySelectorAll('[data-map-layer]').forEach(b=>b.classList.toggle('active',b===btn));
+      }));
+      const enabled=$('toggle-plates');
+      fetchResponse(CONFIG.tectonicUrl,16000).then(r=>r.json()).then(geo=>{
+        if(!geo||!['FeatureCollection','Feature'].includes(geo.type))throw new Error('GeoJSON tectónico inválido');
+        STATE.tectonicLayer=L.geoJSON(geo,{style:{color:'#fbbf24',weight:1.2,opacity:.78,dashArray:'5 5'}});
+        if(enabled.checked)STATE.tectonicLayer.addTo(STATE.map);
+      }).catch(e=>toast('Capa tectónica no disponible',e.message,'info'));
+      enabled.addEventListener('change',()=>{if(!STATE.tectonicLayer)return;if(enabled.checked)STATE.tectonicLayer.addTo(STATE.map);else STATE.map.removeLayer(STATE.tectonicLayer);});
+      ['toggle-quakes','toggle-alerts'].forEach(id=>$(id).addEventListener('change',updateMap));
+      setTimeout(()=>STATE.map.invalidateSize(),250);
+      window.addEventListener('resize',()=>STATE.map.invalidateSize());
+    }
+    function popupNode(title,subtitle,meta){
+      const box=makeEl('div');const h=makeEl('strong','',title);const p=makeEl('div','',subtitle);const small=makeEl('small','',meta);box.append(h,p,small);return box;
+    }
+    function clearMapLayers(){
+      STATE.quakeMarkers.forEach(x=>STATE.map.removeLayer(x));STATE.quakeMarkers=[];
+      STATE.alertLayers.forEach(x=>STATE.map.removeLayer(x));STATE.alertLayers=[];
+    }
+    function updateMap(){
+      if(!STATE.map)return;clearMapLayers();
+      if($('toggle-quakes').checked){
+        for(const q of STATE.quakes.slice(0,CONFIG.mapMarkerLimit)){
+          const color=q.magnitude>=6?'#ef4444':'#f59e0b';
+          const marker=L.circleMarker(q.coords,{radius:Math.max(5,Math.min(11,q.magnitude+1)),color:'#fff',weight:1.5,fillColor:color,fillOpacity:.9});
+          marker.bindPopup(popupNode(q.title,`M ${num(q.magnitude)} · ${q.sourceLabel}`,fmtUTC(q.time)));marker.on('click',()=>openDetail(q));marker.addTo(STATE.map);STATE.quakeMarkers.push(marker);
         }
-
-        // INICIALIZACIÓN DE VOCES DEL NAVEGADOR
-        function initVoices() {
-            const voiceSelect = document.getElementById('audio-voice-select');
-            
-            const loadVoiceList = () => {
-                STATE.voices = window.speechSynthesis.getVoices();
-                voiceSelect.innerHTML = '';
-                
-                // Priorizar voces en español e inglés
-                const sorted = STATE.voices.sort((a, b) => a.lang.localeCompare(b.lang));
-                sorted.forEach(voice => {
-                    const option = document.createElement('option');
-                    option.value = voice.name;
-                    option.textContent = `${voice.name} (${voice.lang})`;
-                    if (voice.lang.includes('es')) option.selected = true;
-                    voiceSelect.appendChild(option);
-                });
-                STATE.selectedVoice = sorted.find(v => v.lang.includes('es')) || sorted[0];
-            };
-
-            loadVoiceList();
-            if (window.speechSynthesis.onvoiceschanged !== undefined) {
-                window.speechSynthesis.onvoiceschanged = loadVoiceList;
-            }
-
-            voiceSelect.addEventListener('change', (e) => {
-                STATE.selectedVoice = STATE.voices.find(v => v.name === e.target.value);
-            });
+      }
+      if($('toggle-alerts').checked){
+        for(const m of getOfficialMessages().filter(x=>isCurrentAlert(x))){
+          for(const a of m.areas||[]){
+            let layer;
+            const color=m.level==='WARNING'||m.level==='THREAT'?'#dc2626':'#f97316';
+            if(a.type==='polygon')layer=L.polygon(a.points,{color,weight:2,fillColor:color,fillOpacity:.13});
+            else layer=L.circle(a.center,{radius:a.radiusKm*1000,color,weight:2,fillColor:color,fillOpacity:.13});
+            layer.bindPopup(popupNode(m.title,`${m.source} · ${m.levelLabel}`,fmtUTC(m.time)));layer.on('click',()=>openDetail(m));layer.addTo(STATE.map);STATE.alertLayers.push(layer);
+          }
         }
-
-        // INICIALIZACIÓN DEL MAPA LEAFLET CON CAPAS ESRI
-        function initMap() {
-            // Mapa base centrado en el Océano Pacífico
-            STATE.map = L.map('map', {
-                zoomControl: false,
-                attributionControl: false
-            }).setView([15, -160], 3);
-
-            // Control de Zoom posicionado arriba a la derecha
-            L.control.zoom({ position: 'topright' }).addTo(STATE.map);
-
-            // Capas Base ESRI
-            const baseLayers = {
-                'esri-ocean': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 13 }),
-                'esri-satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 17 }),
-                'esri-dark': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16 }),
-                'esri-topo': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 17 })
-            };
-
-            baseLayers['esri-ocean'].addTo(STATE.map);
-
-            // Cambio interactivo de capas base
-            document.querySelectorAll('.map-layer-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const layerKey = e.target.getAttribute('data-layer');
-                    document.querySelectorAll('.map-layer-btn').forEach(b => {
-                        b.classList.remove('bg-blue-600', 'text-white');
-                        b.classList.add('bg-slate-800', 'text-slate-300');
-                    });
-                    e.target.classList.remove('bg-slate-800', 'text-slate-300');
-                    e.target.classList.add('bg-blue-600', 'text-white');
-
-                    Object.values(baseLayers).forEach(l => STATE.map.removeLayer(l));
-                    baseLayers[layerKey].addTo(STATE.map);
-                    STATE.activeBaseLayer = layerKey;
-                });
-            });
-
-            // Capa de Placas Tectónicas (GeoJSON)
-            fetch('https://raw.githubusercontent.com/fraixedes/tectonicplates/master/GeoJSON/PB2002_boundaries.json')
-                .then(r => r.json())
-                .then(geo => {
-                    STATE.tectonicLayer = L.geoJSON(geo, {
-                        style: { color: '#f59e0b', weight: 1.5, opacity: 0.6, dashArray: '4, 4' }
-                    }).addTo(STATE.map);
-                })
-                .catch(() => console.log('No se pudo cargar capa de placas'));
-
-            document.getElementById('chk-tectonic-plates').addEventListener('change', (e) => {
-                if (STATE.tectonicLayer) {
-                    if (e.target.checked) STATE.map.addLayer(STATE.tectonicLayer);
-                    else STATE.map.removeLayer(STATE.tectonicLayer);
-                }
-            });
-        }
-
-        // CARGA DE DATOS REALES VIGENTES DE USGS
-        async function fetchUSGSRealData() {
-            showRefreshSpin(true);
-            try {
-                const res = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson');
-                if (!res.ok) throw new Error('API Error');
-                const data = await res.json();
-                
-                const formattedEvents = data.features.map(feat => {
-                    const mag = feat.properties.mag || 5.0;
-                    const title = feat.properties.place || 'Ubicación Desconocida';
-                    const time = new Date(feat.properties.time).toISOString().replace('T', ' ').substring(0, 19);
-                    const depth = feat.geometry.coordinates[2];
-                    const coords = [feat.geometry.coordinates[1], feat.geometry.coordinates[0]];
-
-                    let tsunamiLevel = 'INFORMATIVO';
-                    if (feat.properties.tsunami === 1 || (mag >= 7.5 && depth < 70)) tsunamiLevel = 'ADVERTENCIA';
-                    else if (mag >= 6.8 && depth < 100) tsunamiLevel = 'VIGILANCIA';
-                    else if (mag >= 6.0) tsunamiLevel = 'INFORMATIVO';
-                    else tsunamiLevel = 'CANCELADO';
-
-                    const agencyList = ['USGS', 'PTWC', 'NTWC', 'NWPTAC', 'CATAC', 'JMA', 'INGV', 'SHOA'];
-                    const agency = feat.properties.net ? feat.properties.net.toUpperCase() : agencyList[Math.floor(Math.random() * agencyList.length)];
-
-                    return {
-                        id: feat.id,
-                        title: title,
-                        magnitude: parseFloat(mag).toFixed(1),
-                        depth: parseFloat(depth).toFixed(1),
-                        time: time,
-                        coords: coords,
-                        agency: agency,
-                        status: feat.properties.status === 'reviewed' ? 'Revisado (Vigente)' : 'Preliminar',
-                        tsunamiLevel: tsunamiLevel,
-                        bulletin: generateBulletinText(tsunamiLevel, title, mag, agency)
-                    };
-                });
-
-                STATE.events = formattedEvents;
-                applyFilters();
-                updateStats();
-            } catch (err) {
-                console.warn('Error al cargar datos en vivo:', err);
-                STATE.events = [];
-                applyFilters();
-            } finally {
-                showRefreshSpin(false);
-            }
-        }
-
-        // GENERADOR DE TEXTO OFICIAL PARA BOLETINES
-        function generateBulletinText(level, location, mag, agency) {
-            if (level === 'ADVERTENCIA') {
-                return `BOLETÍN DE ADVERTENCIA DE TSUNAMI EMITIDO POR ${agency}. UN SISMO DE MAGNITUD ${mag} HA GENERADO AMENAZA REAL DE ONDAS DE TSUNAMI PARA LA REGION DE: ${location.toUpperCase()}. SE RECOMIENDA EVACUACIÓN INMEDIATA EN ZONAS COSTERAS BAJAS.`;
-            } else if (level === 'VIGILANCIA') {
-                return `BOLETÍN DE VIGILANCIA EMITIDO POR ${agency}. EVENTO SÍSMICO M ${mag} EN ${location.toUpperCase()}. SE MONITOREAN REGISTROS DE MAREÓGRAFOS PARA DESCARTAR ONDAS DE IMPACTO CONTINENTAL.`;
-            } else if (level === 'CANCELADO') {
-                return `BOLETÍN DE CANCELACIÓN EMITIDO POR ${agency}. EVALUACIÓN FINAL CONFIRMA QUE NO EXISTE RIESGO DE TSUNAMI ASOCIADO AL EVENTO M ${mag} EN ${location}.`;
-            } else {
-                return `BOLETÍN INFORMATIVO DE RUTINA DE ${agency}. SISMO REGISTRADO DE MAGNITUD ${mag} EN ${location}. SIN AMENAZA DE TSUNAMI REPORTADA HASTA EL MOMENTO.`;
-            }
-        }
-
-        // MOSTRAR SPIN DE CARGA
-        function showRefreshSpin(show) {
-            const icon = document.getElementById('refresh-icon');
-            if (show) icon.classList.add('fa-spin');
-            else icon.classList.remove('fa-spin');
-        }
-
-        // FILTRADO Y PAGINACIÓN DE 25 EVENTOS POR BLOQUE
-        function applyFilters() {
-            const minMag = parseFloat(document.getElementById('filter-magnitude').value || 0);
-            STATE.filteredEvents = STATE.events.filter(e => parseFloat(e.magnitude) >= minMag);
-            STATE.currentPage = 1;
-            renderEventsPage();
-            updateMapMarkers();
-            populateSocialSelector();
-        }
-
-        function renderEventsPage() {
-            const container = document.getElementById('events-list-container');
-            container.innerHTML = '';
-
-            const startIdx = (STATE.currentPage - 1) * STATE.pageSize;
-            const pageEvents = STATE.filteredEvents.slice(startIdx, startIdx + STATE.pageSize);
-
-            if (pageEvents.length === 0) {
-                container.innerHTML = `<div class="text-center py-8 text-xs text-slate-500">No hay eventos para el filtro seleccionado.</div>`;
-                document.getElementById('pagination-info').textContent = 'Mostrando 0 - 0';
-                return;
-            }
-
-            pageEvents.forEach(ev => {
-                let badgeBg = 'bg-blue-600/20 text-blue-400 border-blue-500/30';
-                if (ev.tsunamiLevel === 'ADVERTENCIA') badgeBg = 'bg-red-600/20 text-red-400 border-red-500/30 animate-pulse';
-                else if (ev.tsunamiLevel === 'VIGILANCIA') badgeBg = 'bg-amber-600/20 text-amber-400 border-amber-500/30';
-                else if (ev.tsunamiLevel === 'CANCELADO') badgeBg = 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30';
-
-                const card = document.createElement('div');
-                card.className = 'bg-slate-950 hover:bg-slate-800/80 border border-slate-800 p-3 rounded-xl transition cursor-pointer flex flex-col gap-2';
-                card.innerHTML = `
-                    <div class="flex items-center justify-between gap-1">
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded border ${badgeBg}">${ev.tsunamiLevel}</span>
-                        <span class="text-[10px] font-mono bg-cyan-950/80 text-cyan-300 border border-cyan-800/60 px-2 py-0.5 rounded font-bold truncate max-w-[160px]" title="Agencia Emisora: ${ev.agency}">
-                            <i class="fa-solid fa-tower-broadcast mr-1"></i>${ev.agency}
-                        </span>
-                    </div>
-                    <div class="flex items-center justify-between gap-2">
-                        <h4 class="font-bold text-xs text-white truncate flex-1">${ev.title}</h4>
-                        <span class="text-sm font-extrabold text-white bg-slate-800 px-2 py-0.5 rounded border border-slate-700">M ${ev.magnitude}</span>
-                    </div>
-                    <div class="flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                        <span><i class="fa-regular fa-clock mr-1"></i>${ev.time} UTC</span>
-                        <span>Prof: ${ev.depth} km • ${ev.status}</span>
-                    </div>
-                `;
-
-                card.addEventListener('click', () => {
-                    openEventModal(ev);
-                    STATE.map.flyTo(ev.coords, 6, { duration: 1.5 });
-                });
-
-                container.appendChild(card);
-            });
-
-            const total = STATE.filteredEvents.length;
-            const endIdx = Math.min(startIdx + STATE.pageSize, total);
-            document.getElementById('pagination-info').textContent = `Mostrando ${startIdx + 1} - ${endIdx} de ${total}`;
-            
-            document.getElementById('btn-prev-page').disabled = STATE.currentPage === 1;
-            document.getElementById('btn-next-page').disabled = endIdx >= total;
-        }
-
-        // MARCADORES ANIMADOS EN EL MAPA
-        function updateMapMarkers() {
-            STATE.markers.forEach(m => STATE.map.removeLayer(m));
-            STATE.markers = [];
-
-            STATE.filteredEvents.forEach(ev => {
-                let color = '#3b82f6';
-                if (ev.tsunamiLevel === 'ADVERTENCIA') color = '#dc2626';
-                else if (ev.tsunamiLevel === 'VIGILANCIA') color = '#f59e0b';
-                else if (ev.tsunamiLevel === 'CANCELADO') color = '#10b981';
-
-                const customIcon = L.divIcon({
-                    className: 'custom-map-pin',
-                    html: `
-                        <div class="relative flex items-center justify-center">
-                            <div class="tsunami-pulse" style="background-color: ${color}; width: 36px; height: 36px;"></div>
-                            <div style="background-color: ${color};" class="h-5 w-5 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-[9px] font-extrabold text-white">
-                                ${Math.round(ev.magnitude)}
-                            </div>
-                        </div>
-                    `,
-                    iconSize: [24, 24]
-                });
-
-                const marker = L.marker(ev.coords, { icon: customIcon }).addTo(STATE.map);
-                marker.bindPopup(`
-                    <div class="p-1 text-slate-900 font-sans">
-                        <div class="font-bold text-xs mb-0.5">${ev.title}</div>
-                        <div class="text-[11px] text-slate-600">Magnitud: <strong>M ${ev.magnitude}</strong> | Prof: ${ev.depth}km</div>
-                        <div class="text-[10px] text-slate-500 font-mono mt-1">${ev.time} UTC</div>
-                        <div class="mt-1.5 font-bold text-[10px] text-blue-600 uppercase">${ev.tsunamiLevel} (${ev.agency})</div>
-                    </div>
-                `);
-
-                marker.on('click', () => openEventModal(ev));
-                STATE.markers.push(marker);
-            });
-        }
-
-        // ACTUALIZACIÓN DE MÉTRICAS GLOBALES
-        function updateStats() {
-            const activeAlerts = STATE.events.filter(e => e.tsunamiLevel === 'ADVERTENCIA' || e.tsunamiLevel === 'VIGILANCIA').length;
-            const majorEq = STATE.events.filter(e => parseFloat(e.magnitude) >= 6.0).length;
-
-            document.getElementById('metric-alerts-count').textContent = activeAlerts;
-            document.getElementById('metric-major-eq').textContent = majorEq;
-        }
-
-        // POPULATE SOCIAL SELECTOR
-        function populateSocialSelector() {
-            const select = document.getElementById('select-event-for-social');
-            select.innerHTML = '';
-
-            STATE.filteredEvents.slice(0, 50).forEach(ev => {
-                const opt = document.createElement('option');
-                opt.value = ev.id;
-                opt.textContent = `[M ${ev.magnitude}] ${ev.title} — Emisor: ${ev.agency}`;
-                select.appendChild(opt);
-            });
-
-            if (STATE.filteredEvents.length > 0) {
-                STATE.selectedEvent = STATE.filteredEvents[0];
-            }
-        }
-
-        // ABRIR MODAL DE DETALLE DEL EVENTO
-        function openEventModal(ev) {
-            STATE.selectedEvent = ev;
-            document.getElementById('modal-event-title').textContent = ev.title;
-            document.getElementById('modal-event-mag').textContent = `${ev.magnitude} Mwd`;
-            document.getElementById('modal-event-depth').textContent = `${ev.depth} km`;
-            document.getElementById('modal-event-time').textContent = `${ev.time} UTC`;
-            document.getElementById('modal-event-coords').textContent = `${ev.coords[0].toFixed(3)}°, ${ev.coords[1].toFixed(3)}°`;
-            document.getElementById('modal-event-agency').textContent = `EMISOR: ${ev.agency}`;
-            document.getElementById('modal-event-bulletin').textContent = ev.bulletin;
-
-            const badge = document.getElementById('modal-event-badge');
-            badge.textContent = ev.tsunamiLevel;
-            badge.className = 'px-2.5 py-0.5 rounded-full text-xs font-bold text-white ';
-            if (ev.tsunamiLevel === 'ADVERTENCIA') badge.className += 'bg-red-600 animate-pulse';
-            else if (ev.tsunamiLevel === 'VIGILANCIA') badge.className += 'bg-amber-600';
-            else if (ev.tsunamiLevel === 'CANCELADO') badge.className += 'bg-emerald-600';
-            else badge.className += 'bg-blue-600';
-
-            document.getElementById('modal-event-detail').classList.remove('hidden');
-
-            const socialSel = document.getElementById('select-event-for-social');
-            if (socialSel) socialSel.value = ev.id;
-
-            // Reproducir síntesis de voz si está activa incluyendo la agencia emisora
-            if (document.getElementById('chk-voice-enabled').checked) {
-                speakText(`Alerta emitida por ${ev.agency}. ${ev.bulletin}`);
-            }
-        }
-
-        // REPRODUCCIÓN DE VOZ (WEB SPEECH API)
-        function speakText(text) {
-            if (!('speechSynthesis' in window)) return;
-            window.speechSynthesis.cancel();
-
-            const utterance = new SpeechSynthesisUtterance(text);
-            if (STATE.selectedVoice) utterance.voice = STATE.selectedVoice;
-            utterance.rate = parseFloat(document.getElementById('audio-rate').value || 1.0);
-            utterance.pitch = parseFloat(document.getElementById('audio-pitch').value || 1.0);
-
-            window.speechSynthesis.speak(utterance);
-        }
-
-        // CONVERSIÓN DE COORDENADAS A TILES DE MAPA ESRI PARA LA INFOGRAFÍA
-        function latLonToTile(lat, lon, zoom) {
-            const n = Math.pow(2, zoom);
-            const xtile = Math.floor((lon + 180) / 360 * n);
-            const latRad = lat * Math.PI / 180;
-            const ytile = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
-            return { x: xtile, y: ytile };
-        }
-
-        // RENDERIZADOR SOCIAL HD 1080x1350 PX (CANVAS) CON ICONO Y MAPA REAL DEL EPICENTRO
-        async function generate1080x1350SocialImage(ev) {
-            const canvas = document.getElementById('social-canvas-1080');
-            if (!canvas || !ev) return;
-            const ctx = canvas.getContext('2d');
-
-            // 1. Fondo Oscuro Principal (1080x1350)
-            ctx.fillStyle = '#090d16';
-            ctx.fillRect(0, 0, 1080, 1350);
-
-            // 2. Banner Superior de Alerta
-            let headerColor = '#2563eb';
-            if (ev.tsunamiLevel === 'ADVERTENCIA') headerColor = '#dc2626';
-            else if (ev.tsunamiLevel === 'VIGILANCIA') headerColor = '#d97706';
-            else if (ev.tsunamiLevel === 'CANCELADO') headerColor = '#059669';
-
-            ctx.fillStyle = headerColor;
-            ctx.fillRect(0, 0, 1080, 210);
-
-            // ICONO VECTORIAL OFICIAL TSUNAMIGUARD EN LA CABECERA DE LA IMAGEN
-            ctx.save();
-            ctx.translate(60, 42);
-            // Escudo / Contenedor redondeado blanco translúcido
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
-            ctx.beginPath();
-            ctx.roundRect(0, 0, 115, 115, 24);
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            // Dibujo de Ola de Tsunami estilizada en blanco
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.moveTo(18, 85);
-            ctx.bezierCurveTo(22, 42, 58, 22, 86, 38);
-            ctx.bezierCurveTo(68, 42, 62, 56, 76, 66);
-            ctx.bezierCurveTo(86, 72, 96, 68, 98, 85);
-            ctx.closePath();
-            ctx.fill();
-
-            // Base de ola inferior
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 6;
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(18, 97);
-            ctx.quadraticCurveTo(58, 90, 98, 97);
-            ctx.stroke();
-            ctx.restore();
-
-            // Textos del encabezado (Sin el texto "Infografía Social (1080 x 1350 px)")
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 34px sans-serif';
-            ctx.fillText('TSUNAMIGUARD • BOLETÍN OFICIAL', 200, 78);
-            
-            ctx.font = 'bold 54px sans-serif';
-            ctx.fillText(ev.tsunamiLevel, 200, 142);
-
-            ctx.font = 'bold 22px monospace';
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
-            ctx.fillText(`AGENCIA EMISORA: ${ev.agency.toUpperCase()}`, 200, 182);
-
-            // 3. Tarjeta Contenedora Principal
-            ctx.fillStyle = '#1e293b';
-            ctx.fillRect(50, 235, 980, 1065);
-
-            ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 4;
-            ctx.strokeRect(50, 235, 980, 1065);
-
-            // 4. Magnitud y Mapa Real del Epicentro Incorporado
-            ctx.fillStyle = headerColor;
-            ctx.font = 'bold 104px sans-serif';
-            ctx.fillText(`M ${ev.magnitude}`, 85, 355);
-
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = 'bold 24px sans-serif';
-            ctx.fillText(`ESTADO: ${ev.status.toUpperCase()}`, 85, 395);
-
-            ctx.fillStyle = '#38bdf8';
-            ctx.font = 'bold 22px sans-serif';
-            ctx.fillText(`PROFUNDIDAD: ${ev.depth} KM`, 85, 435);
-
-            // Contenedor del Mapa del Epicentro (530x255)
-            const mapX = 465, mapY = 260, mapW = 530, mapH = 255;
-            ctx.fillStyle = '#0b1324';
-            ctx.fillRect(mapX, mapY, mapW, mapH);
-
-            // Intentar cargar Tile real de mapa ESRI Ocean centrado en el epicentro
-            const zoom = 5;
-            const tile = latLonToTile(ev.coords[0], ev.coords[1], zoom);
-            const tileUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/${zoom}/${tile.y}/${tile.x}`;
-
-            await new Promise((resolve) => {
-                const img = new Image();
-                img.crossOrigin = 'Anonymous';
-                img.onload = () => {
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.rect(mapX, mapY, mapW, mapH);
-                    ctx.clip();
-                    ctx.drawImage(img, mapX, mapY, mapW, mapH);
-                    // Oscurecer levemente para resaltar el marcador de epicentro
-                    ctx.fillStyle = 'rgba(9, 13, 22, 0.28)';
-                    ctx.fillRect(mapX, mapY, mapW, mapH);
-                    ctx.restore();
-                    resolve();
-                };
-                img.onerror = () => {
-                    // Fallback de cuadrícula topográfica si el tile falla
-                    ctx.strokeStyle = '#1e293b';
-                    ctx.lineWidth = 1.5;
-                    for (let gx = mapX + 40; gx < mapX + mapW; gx += 50) {
-                        ctx.beginPath(); ctx.moveTo(gx, mapY); ctx.lineTo(gx, mapY + mapH); ctx.stroke();
-                    }
-                    for (let gy = mapY + 40; gy < mapY + mapH; gy += 40) {
-                        ctx.beginPath(); ctx.moveTo(mapX, gy); ctx.lineTo(mapX + mapW, gy); ctx.stroke();
-                    }
-                    resolve();
-                };
-                img.src = tileUrl;
-            });
-
-            // Borde del mapa y ondas sísmicas del epicentro
-            ctx.strokeStyle = '#475569';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(mapX, mapY, mapW, mapH);
-
-            const cx = mapX + mapW / 2;
-            const cy = mapY + mapH / 2;
-
-            ctx.strokeStyle = headerColor;
-            ctx.lineWidth = 4;
-            ctx.beginPath(); ctx.arc(cx, cy, 75, 0, Math.PI * 2); ctx.stroke();
-            ctx.beginPath(); ctx.arc(cx, cy, 45, 0, Math.PI * 2); ctx.stroke();
-            ctx.beginPath(); ctx.arc(cx, cy, 22, 0, Math.PI * 2); ctx.stroke();
-
-            // Punto central del epicentro
-            ctx.fillStyle = headerColor;
-            ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
-
-            // Etiqueta de coordenadas sobre el mapa
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-            ctx.fillRect(mapX + 10, mapY + mapH - 38, mapW - 20, 28);
-            ctx.fillStyle = '#f8fafc';
-            ctx.font = 'bold 17px monospace';
-            ctx.fillText(`MAPA EPICENTRO: ${ev.coords[0].toFixed(3)}°, ${ev.coords[1].toFixed(3)}°`, mapX + 20, mapY + mapH - 18);
-
-            // Línea divisora
-            ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(85, 540); ctx.lineTo(995, 540); ctx.stroke();
-
-            // 5. Detalles del Evento
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = 'bold 23px sans-serif';
-            ctx.fillText('UBICACIÓN / REGIÓN AFECTADA:', 85, 580);
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 30px sans-serif';
-            ctx.fillText(ev.title.substring(0, 48), 85, 620);
-
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = 'bold 23px sans-serif';
-            ctx.fillText('AGENCIA EMISORA OFICIAL:', 85, 680);
-            ctx.fillStyle = '#38bdf8';
-            ctx.font = 'bold 30px sans-serif';
-            ctx.fillText(ev.agency, 85, 720);
-
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = 'bold 23px sans-serif';
-            ctx.fillText('FECHA Y HORA (UTC):', 560, 680);
-            ctx.fillStyle = '#f1f5f9';
-            ctx.font = 'bold 28px monospace';
-            ctx.fillText(ev.time, 560, 720);
-
-            // Línea divisora
-            ctx.beginPath(); ctx.moveTo(85, 760); ctx.lineTo(995, 760); ctx.stroke();
-
-            // 6. Texto del Boletín Oficial Multilínea
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = 'bold 24px sans-serif';
-            ctx.fillText(`BOLETÍN EMITIDO POR ${ev.agency.toUpperCase()}:`, 85, 805);
-
-            ctx.fillStyle = '#e2e8f0';
-            ctx.font = '26px sans-serif';
-
-            const wrapText = (text, x, y, maxWidth, lineHeight) => {
-                const words = text.split(' ');
-                let line = '';
-                for (let n = 0; n < words.length; n++) {
-                    const testLine = line + words[n] + ' ';
-                    const metrics = ctx.measureText(testLine);
-                    if (metrics.width > maxWidth && n > 0) {
-                        ctx.fillText(line, x, y);
-                        line = words[n] + ' ';
-                        y += lineHeight;
-                    } else {
-                        line = testLine;
-                    }
-                }
-                ctx.fillText(line, x, y);
-            };
-
-            wrapText(ev.bulletin, 85, 850, 900, 40);
-
-            ctx.fillStyle = '#64748b';
-            ctx.font = 'bold 21px monospace';
-            ctx.fillText(`TSUNAMIGUARD • FUENTE OFICIAL: ${ev.agency.toUpperCase()}`, 85, 1265);
-
-            document.getElementById('social-preview-drawer').classList.remove('hidden');
-        }
-
-        // MANEJADORES DE EVENTOS DEL DASHBOARD
-        function setupEventListeners() {
-            // Refrescar Datos
-            document.getElementById('btn-refresh-data').addEventListener('click', () => {
-                verifyAgenciesConnections();
-                fetchAllAgenciesData();
-            });
-
-            // Filtro de Magnitud y Paginación
-            document.getElementById('filter-magnitude').addEventListener('change', applyFilters);
-            document.getElementById('btn-prev-page').addEventListener('click', () => {
-                if (STATE.currentPage > 1) { STATE.currentPage--; renderEventsPage(); }
-            });
-            document.getElementById('btn-next-page').addEventListener('click', () => {
-                if ((STATE.currentPage * STATE.pageSize) < STATE.filteredEvents.length) { STATE.currentPage++; renderEventsPage(); }
-            });
-
-            // Selector de Tema (Claro / Oscuro / Sistema)
-            const setTheme = (mode) => {
-                const html = document.documentElement;
-                if (mode === 'light') html.classList.remove('dark');
-                else if (mode === 'dark') html.classList.add('dark');
-                else {
-                    if (window.matchMedia('(prefers-color-scheme: dark)').matches) html.classList.add('dark');
-                    else html.classList.remove('dark');
-                }
-                document.querySelectorAll('.theme-btn').forEach(btn => {
-                    const isActive = btn.getAttribute('data-theme') === mode;
-                    btn.classList.toggle('bg-blue-600', isActive);
-                    btn.classList.toggle('text-white', isActive);
-                    btn.classList.toggle('font-bold', isActive);
-                    btn.classList.toggle('text-slate-400', !isActive);
-                });
-            };
-
-            document.querySelectorAll('.theme-btn').forEach(btn => {
-                btn.addEventListener('click', () => setTheme(btn.getAttribute('data-theme')));
-            });
-            document.getElementById('btn-theme-toggle-mobile').addEventListener('click', () => {
-                const isDark = document.documentElement.classList.contains('dark');
-                setTheme(isDark ? 'light' : 'dark');
-            });
-
-            // Modales
-            document.getElementById('btn-close-event-modal').addEventListener('click', () => {
-                document.getElementById('modal-event-detail').classList.add('hidden');
-            });
-
-            document.getElementById('btn-audio-settings').addEventListener('click', () => {
-                document.getElementById('modal-audio-settings').classList.remove('hidden');
-            });
-            document.getElementById('btn-close-audio-modal').addEventListener('click', () => {
-                document.getElementById('modal-audio-settings').classList.add('hidden');
-            });
-
-            // Prueba de voz
-            document.getElementById('btn-test-voice').addEventListener('click', () => {
-                speakText('Prueba del sistema de alertas por voz de TsunamiGuard. Estado de la red operacional.');
-            });
-
-            // Generador de Placa Social Manual
-            document.getElementById('btn-render-social-card').addEventListener('click', () => {
-                const selectedId = document.getElementById('select-event-for-social').value;
-                const ev = STATE.events.find(e => e.id === selectedId) || STATE.selectedEvent;
-                if (ev) {
-                    generate1080x1350SocialImage(ev);
-                    document.getElementById('social-preview-drawer').scrollIntoView({ behavior: 'smooth' });
-                }
-            });
-
-            document.getElementById('select-event-for-social').addEventListener('change', (e) => {
-                const ev = STATE.events.find(item => item.id === e.target.value);
-                if (ev) generate1080x1350SocialImage(ev);
-            });
-
-            // Descarga de Imagen PNG
-            document.getElementById('btn-download-social-png').addEventListener('click', () => {
-                const canvas = document.getElementById('social-canvas-1080');
-                const link = document.createElement('a');
-                link.download = `TsunamiGuard-Alerta-${Date.now()}.png`;
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-            });
-
-            // Compartición Redes Sociales
-            document.getElementById('btn-share-whatsapp').addEventListener('click', () => {
-                if (!STATE.selectedEvent) return;
-                const text = encodeURIComponent(`🚨 ALERTA TSUNAMIGUARD M ${STATE.selectedEvent.magnitude}\n📍 Ubicación: ${STATE.selectedEvent.title}\n⚠️ Estado: ${STATE.selectedEvent.tsunamiLevel}\n🏛️ Emisor: ${STATE.selectedEvent.agency}\n\nBoletín: ${STATE.selectedEvent.bulletin}`);
-                window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
-            });
-
-            document.getElementById('btn-share-telegram').addEventListener('click', () => {
-                if (!STATE.selectedEvent) return;
-                const text = encodeURIComponent(`🚨 ALERTA TSUNAMIGUARD M ${STATE.selectedEvent.magnitude}\n📍 Ubicación: ${STATE.selectedEvent.title}\n⚠️ Estado: ${STATE.selectedEvent.tsunamiLevel}\n\n${STATE.selectedEvent.bulletin}`);
-                window.open(`https://t.me/share/url?url=${encodeURIComponent(location.href)}&text=${text}`, '_blank');
-            });
-
-            document.getElementById('btn-copy-summary').addEventListener('click', () => {
-                if (!STATE.selectedEvent) return;
-                const text = `TSUNAMIGUARD REPORTE: M ${STATE.selectedEvent.magnitude} | ${STATE.selectedEvent.title} | ${STATE.selectedEvent.tsunamiLevel} | Agencia Emisora: ${STATE.selectedEvent.agency} | UTC: ${STATE.selectedEvent.time}`;
-                const tempInput = document.createElement('textarea');
-                tempInput.value = text;
-                document.body.appendChild(tempInput);
-                tempInput.select();
-                document.execCommand('copy');
-                document.body.removeChild(tempInput);
-                showToast('Copiado al Portapapeles', `Reporte de ${STATE.selectedEvent.agency} listo para pegar.`, 'success');
-            });
-
-            // Navegación Scroll Top
-            const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
-            document.getElementById('btn-scroll-top-drawer').addEventListener('click', scrollToTop);
-            document.getElementById('floating-return-btn').addEventListener('click', scrollToTop);
-
-            document.getElementById('btn-close-drawer-bottom').addEventListener('click', () => {
-                document.getElementById('social-preview-drawer').classList.add('hidden');
-            });
-
-            document.getElementById('btn-return-dashboard-bottom').addEventListener('click', () => {
-                document.getElementById('social-preview-drawer').classList.add('hidden');
-                scrollToTop();
-            });
-        }
-    </script>
+      }
+    }
+
+    function recordMatches(record,query,minMag){
+      const text=`${record.title} ${record.sourceLabel} ${record.description||''} ${record.eventName||''}`.toLowerCase();
+      return (!query||text.includes(query))&&(record.recordType!=='quake'||record.magnitude>=minMag);
+    }
+    function getFilteredRecords(){
+      const query=$('search-events').value.trim().toLowerCase(),minMag=Number($('filter-mag').value)||0;
+      const all=[...STATE.quakes,...getOfficialMessages()].filter(r=>recordMatches(r,query,minMag));
+      const filtered=STATE.filter==='quakes'?all.filter(x=>x.recordType==='quake'):STATE.filter==='messages'?all.filter(x=>x.recordType==='message'):all;
+      return filtered.sort((a,b)=>b.time-a.time);
+    }
+    function badgeFor(record){
+      if(record.recordType==='message'&&record.source==='JMA')return {text:'PUBLICACIÓN JMA · PULL',color:'blue'};
+      if(record.recordType==='quake')return {text:record.tsunamiFlag?'SISMO · FLAG USGS':'EVENTO SÍSMICO',color:record.tsunamiFlag?'orange':'blue'};
+      return {text:record.messageFormat==='CAP'?record.levelLabel:`${record.source} · ATOM`,color:record.color||'blue'};
+    }
+    function renderFeed(){
+      const list=$('events-list');const all=getFilteredRecords();const total=all.length;const pages=Math.max(1,Math.ceil(total/CONFIG.pageSize));STATE.page=Math.min(STATE.page,pages);
+      const start=(STATE.page-1)*CONFIG.pageSize;const rows=all.slice(start,start+CONFIG.pageSize);list.replaceChildren();
+      if(!rows.length){list.append(makeEl('div','empty-state','No hay registros que coincidan con los filtros.'));}
+      for(const r of rows){
+        const card=makeEl('article','event-card');card.tabIndex=0;card.setAttribute('role','button');
+        const top=makeEl('div','event-top');const badge=badgeFor(r);top.append(makeEl('span',`tag ${badge.color}`,badge.text));top.append(makeEl('span','tag',r.sourceLabel));
+        const row=makeEl('div','event-title-row');row.append(makeEl('div','event-title',r.title));if(r.recordType==='quake')row.append(makeEl('span','event-mag',`M ${num(r.magnitude)}`));
+        const foot=makeEl('div','event-foot');foot.append(makeEl('span','event-meta',fmtUTC(r.time)));foot.append(makeEl('span','event-meta',r.recordType==='quake'?(r.depth===null?'Prof. —':`Prof. ${num(r.depth)} km`):r.messageFormat));
+        card.append(top,row,foot);if(r.recordType==='message'&&r.description)card.append(makeEl('div','event-summary',r.description));
+        card.addEventListener('click',()=>openDetail(r));card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetail(r);}});list.append(card);
+      }
+      $('pagination-label').textContent=total?`Mostrando ${start+1}–${Math.min(start+CONFIG.pageSize,total)} de ${total}`:'0 registros';
+      $('page-prev').disabled=STATE.page<=1;$('page-next').disabled=STATE.page>=pages;
+      populateSocialSelect(all);
+    }
+    function populateSocialSelect(records){
+      const select=$('social-event-select'),current=select.value;select.replaceChildren();
+      for(const r of records.slice(0,250)){const opt=makeEl('option','',`${r.recordType==='quake'?'SISMO M'+num(r.magnitude):r.source+' · '+r.levelLabel} — ${r.title}`);opt.value=r.id;select.append(opt);}
+      if(records.some(r=>r.id===current))select.value=current;
+      else if(records.length)select.value=records[0].id;
+      else select.append(makeEl('option','','Sin registros disponibles'));
+    }
+    function findRecord(id){return [...STATE.quakes,...getOfficialMessages()].find(r=>r.id===id)||null;}
+    function openDetail(record){
+      STATE.selected=record;
+      const badge=badgeFor(record);$('detail-kind').textContent=badge.text;$('detail-kind').className=`tag ${badge.color}`;$('detail-source').textContent=record.sourceLabel;
+      $('detail-title').textContent=record.title;$('detail-subtitle').textContent=`${fmtUTC(record.time)} · Hora local: ${fmtLocal(record.time)}`;
+      const grid=$('detail-grid');grid.replaceChildren();
+      const cells=record.recordType==='quake'?
+        [['Magnitud',`M ${num(record.magnitude)} ${record.magnitudeType}`],['Profundidad',record.depth===null?'No informada':`${num(record.depth)} km`],['Coordenadas',`${num(record.coords[0],3)}, ${num(record.coords[1],3)}`],['Estado del catálogo',record.status],['Indicador USGS tsunami',record.tsunamiFlag?'Marcado (no equivale a una alerta oficial)':'No marcado'],['Fuente',record.sourceLabel]]:
+        [['Centro emisor',record.source],['Formato',record.messageFormat],['Tipo de mensaje',record.msgType||'—'],['Estado CAP',record.status||'Publicación Atom'],['Clasificación',record.levelLabel],['Vigencia',record.expires?fmtUTC(record.expires):'No especificada']];
+      for(const [label,value] of cells){const cell=makeEl('div','detail-cell');cell.append(makeEl('div','detail-label',label),makeEl('div','detail-value',value));grid.append(cell);}
+      $('detail-description').textContent=record.description||'La fuente no incluyó una descripción textual.';
+      $('detail-instruction-wrap').style.display=record.instruction?'block':'none';$('detail-instruction').textContent=record.instruction||'';
+      const link=$('detail-source-link');link.href=record.detailUrl||'https://www.tsunami.gov/';link.textContent=record.recordType==='quake'?'Abrir evento en el catálogo ↗':'Abrir mensaje original ↗';
+      $('detail-modal').classList.add('open');
+    }
+    function summaryForShare(r){
+      if(!r)return '';
+      if(r.recordType==='quake')return `TSUNAMIGUARD · EVENTO SÍSMICO\n${r.title}\nMagnitud: M ${num(r.magnitude)}\nProfundidad: ${r.depth===null?'No informada':num(r.depth)+' km'}\nCoordenadas: ${r.coords.map(x=>num(x,3)).join(', ')}\nHora: ${fmtUTC(r.time)}\nCatálogo: ${r.sourceLabel}\nNota: un evento sísmico no constituye por sí solo una alerta oficial de tsunami.\nFuente: ${r.detailUrl}`;
+      return `TSUNAMIGUARD · MENSAJE DE CENTRO DE TSUNAMI\nCentro: ${r.source}\nMensaje: ${r.title}\nClasificación identificada: ${r.levelLabel}\nHora de emisión/publicación: ${fmtUTC(r.time)}\nFormato: ${r.messageFormat}\n${r.description||''}\n${r.instruction||''}\nFuente: ${r.detailUrl}`;
+    }
+    async function copyText(text){
+      try{await navigator.clipboard.writeText(text);}catch(_){const area=makeEl('textarea');area.value=text;document.body.append(area);area.select();document.execCommand('copy');area.remove();}
+      toast('Ficha copiada','El resumen está disponible en el portapapeles.','success');
+    }
+    function closeModal(id){$(id).classList.remove('open');}
+
+    function populateVoices(){
+      if(!('speechSynthesis'in window)){$('voice-select').replaceChildren(makeEl('option','','Síntesis de voz no disponible'));return;}
+      STATE.voices=window.speechSynthesis.getVoices();const sel=$('voice-select');const old=STATE.settings.voiceName;sel.replaceChildren(makeEl('option','','Voz predeterminada del navegador'));
+      for(const voice of STATE.voices){const op=makeEl('option','',`${voice.name} (${voice.lang})`);op.value=voice.name;sel.append(op);}
+      if(old&&STATE.voices.some(v=>v.name===old))sel.value=old;else{const spanish=STATE.voices.find(v=>/^es([-_]|$)/i.test(v.lang));if(spanish)sel.value=spanish.name;}
+    }
+    async function unlockAudio(){
+      try{const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)throw new Error('Web Audio API no disponible');if(!STATE.audioContext)STATE.audioContext=new Ctx();await STATE.audioContext.resume();STATE.audioUnlocked=STATE.audioContext.state==='running';$('audio-status').textContent=STATE.audioUnlocked?'Audio habilitado para esta sesión.':'El navegador no permitió habilitar el audio.';toast('Audio preparado',STATE.audioUnlocked?'La sirena puede reproducirse cuando llegue un nuevo mensaje oficial.':'Revisa los permisos del navegador.',STATE.audioUnlocked?'success':'alert');}
+      catch(e){$('audio-status').textContent=e.message;toast('Audio no disponible',e.message,'alert');}
+    }
+    function speak(text){
+      if(!('speechSynthesis'in window)){toast('Voz no disponible','Este navegador no ofrece síntesis de voz.','alert');return;}
+      window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);const voice=STATE.voices.find(v=>v.name===STATE.settings.voiceName);if(voice)u.voice=voice;
+      u.lang=voice?.lang||'es-ES';u.rate=Number(STATE.settings.rate)||1;u.pitch=Number(STATE.settings.pitch)||1;window.speechSynthesis.speak(u);
+    }
+    function playSiren(){
+      if(!STATE.audioUnlocked||!STATE.audioContext){$('audio-status').textContent='Activa el audio antes de permitir la sirena.';return;}
+      const ctx=STATE.audioContext;const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sawtooth';osc.connect(gain);gain.connect(ctx.destination);
+      const now=ctx.currentTime;gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(.12,now+.12);gain.gain.setValueAtTime(.12,now+2.8);gain.gain.exponentialRampToValueAtTime(.0001,now+3.2);
+      osc.frequency.setValueAtTime(740,now);osc.frequency.setValueAtTime(980,now+.45);osc.frequency.setValueAtTime(740,now+.9);osc.frequency.setValueAtTime(980,now+1.35);osc.frequency.setValueAtTime(740,now+1.8);osc.frequency.setValueAtTime(980,now+2.25);osc.start(now);osc.stop(now+3.25);
+    }
+    function syncSettingsUI(){
+      $('auto-refresh').checked=!!STATE.settings.autoRefresh;$('refresh-interval').value=String(STATE.settings.refreshInterval);
+      $('voice-enabled').checked=!!STATE.settings.voiceEnabled;$('siren-enabled').checked=!!STATE.settings.sirenEnabled;
+      $('voice-rate').value=STATE.settings.rate;$('voice-pitch').value=STATE.settings.pitch;
+      $('rate-value').textContent=Number(STATE.settings.rate).toFixed(1)+'×';$('pitch-value').textContent=Number(STATE.settings.pitch).toFixed(1);
+    }
+    function configureAutoRefresh(){
+      if(STATE.refreshTimer)clearInterval(STATE.refreshTimer);STATE.refreshTimer=null;
+      if(STATE.settings.autoRefresh){const delay=STATE.consecutiveFailures?STATE.retryDelay:(Number(STATE.settings.refreshInterval)||120000);STATE.refreshTimer=setTimeout(()=>{STATE.refreshTimer=null;if(document.visibilityState==='visible'&&navigator.onLine)refreshData(false);else configureAutoRefresh();},delay);}
+    }
+
+    // Funciones del exportador PNG 4:5.
+    function roundedRect(ctx,x,y,w,h,r,fill,stroke){ctx.beginPath();ctx.roundRect?ctx.roundRect(x,y,w,h,r):(ctx.rect(x,y,w,h));if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=2;ctx.stroke();}}
+    function wrapCanvasText(ctx,text,x,y,maxWidth,lineHeight,maxLines=4){
+      const words=String(text||'').split(/\s+/);let line='',lines=0;
+      for(let i=0;i<words.length;i++){const test=line?line+' '+words[i]:words[i];if(ctx.measureText(test).width>maxWidth&&line){ctx.fillText(line,x,y);y+=lineHeight;lines++;line=words[i];if(lines>=maxLines-1){let rest=words.slice(i+1).join(' ');while(ctx.measureText(line+'…').width>maxWidth&&line.length>4)line=line.slice(0,-1);ctx.fillText(line+(rest?'…':''),x,y);return y+lineHeight;}}else line=test;}
+      if(line)ctx.fillText(line,x,y);return y+lineHeight;
+    }
+    function coordsForRecord(r){
+      if(r.recordType==='quake')return r.coords;
+      const a=r.areas?.[0];if(!a)return null;if(a.type==='circle')return a.center;
+      const lat=a.points.reduce((s,p)=>s+p[0],0)/a.points.length,lon=a.points.reduce((s,p)=>s+p[1],0)/a.points.length;return [lat,lon];
+    }
+    function worldPixel(lat,lon,z){const n=256*Math.pow(2,z);const clamped=Math.max(-85.05112878,Math.min(85.05112878,lat));const sin=Math.sin(clamped*Math.PI/180);return {x:(lon+180)/360*n,y:(.5-Math.log((1+sin)/(1-sin))/(4*Math.PI))*n};}
+    function loadImage(url){return new Promise((resolve,reject)=>{const img=new Image();const timer=setTimeout(()=>{img.src='';reject(new Error('Tiempo de espera de mosaico agotado'));},9000);img.crossOrigin='anonymous';img.onload=()=>{clearTimeout(timer);resolve(img);};img.onerror=()=>{clearTimeout(timer);reject(new Error('Tile satelital no disponible'));};img.src=url;});}
+    async function drawSatellitePanel(ctx,r,x,y,w,h){
+      ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();ctx.fillStyle='#17263a';ctx.fillRect(x,y,w,h);
+      const coords=coordsForRecord(r);if(!coords){ctx.fillStyle='#dce7f5';ctx.font='bold 23px Arial';ctx.fillText('No se recibió geometría geográfica en el mensaje.',x+24,y+h/2);ctx.restore();return;}
+      const z=5,center=worldPixel(coords[0],coords[1],z);
+      const left=center.x-w/2,top=center.y-h/2;
+      const minX=Math.floor(left/256),maxX=Math.floor((center.x+w/2)/256),minY=Math.floor(top/256),maxY=Math.floor((center.y+h/2)/256),n=Math.pow(2,z);
+      const jobs=[];for(let ty=minY;ty<=maxY;ty++)for(let tx=minX;tx<=maxX;tx++){if(ty<0||ty>=n)continue;const wrapped=((tx%n)+n)%n;const url=`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${ty}/${wrapped}`;jobs.push((async()=>{const img=await loadImage(url);const dx=x+tx*256-left,dy=y+ty*256-top;ctx.drawImage(img,dx,dy,256,256);})());}
+      const settled=await Promise.allSettled(jobs);const good=settled.some(v=>v.status==='fulfilled');
+      if(!good){ctx.fillStyle='#0d1a2c';ctx.fillRect(x,y,w,h);ctx.strokeStyle='#29405c';ctx.lineWidth=1;for(let gx=x;gx<x+w;gx+=55){ctx.beginPath();ctx.moveTo(gx,y);ctx.lineTo(gx,y+h);ctx.stroke();}for(let gy=y;gy<y+h;gy+=55){ctx.beginPath();ctx.moveTo(x,gy);ctx.lineTo(x+w,gy);ctx.stroke();}ctx.fillStyle='#dbeafe';ctx.font='bold 22px Arial';ctx.fillText('MAPA SATELITAL NO DISPONIBLE',x+25,y+h/2-8);ctx.font='18px Arial';ctx.fillText('Consulta el evento en la fuente enlazada.',x+25,y+h/2+24);}
+      else{
+        ctx.fillStyle='rgba(3,12,25,.2)';ctx.fillRect(x,y,w,h);
+        const px=x+w/2,py=y+h/2;ctx.strokeStyle='#fff';ctx.lineWidth=5;ctx.beginPath();ctx.arc(px,py,33,0,Math.PI*2);ctx.stroke();ctx.strokeStyle='#ef4444';ctx.lineWidth=5;ctx.beginPath();ctx.arc(px,py,17,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(px,py,5,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='rgba(5,12,23,.78)';ctx.fillRect(x+8,y+h-42,w-16,32);ctx.fillStyle='#fff';ctx.font='bold 17px Arial';ctx.fillText(`${coords[0].toFixed(3)}°, ${coords[1].toFixed(3)}°`,x+20,y+h-20);
+      }
+      ctx.strokeStyle='#64748b';ctx.lineWidth=2;ctx.strokeRect(x,y,w,h);ctx.restore();
+    }
+    function visualColorForRecord(record){
+      if(record.recordType==='message'){
+        const level=String(record.level||record.levelLabel||'').toLowerCase();
+        const label=String(record.levelLabel||'').toLowerCase();
+        if(record.cancelled||level.includes('cancel')||label.includes('cancel'))return '#16a34a';
+        if(level.includes('warning')||level.includes('threat')||label.includes('warning')||label.includes('advertencia')||label.includes('threat')||label.includes('amenaza'))return '#dc2626';
+        if(level.includes('watch')||label.includes('watch')||label.includes('vigilancia'))return '#ea580c';
+        if(level.includes('advisory')||label.includes('advisory')||label.includes('aviso'))return '#ca8a04';
+        if(level.includes('test')||level.includes('exercise')||label.includes('prueba'))return '#7c3aed';
+        return '#0369a1';
+      }
+      const m=Number(record.magnitude)||0;
+      if(m>=7)return '#991b1b';
+      if(m>=6)return '#dc2626';
+      if(m>=5)return '#ea580c';
+      if(m>=4.5)return '#ca8a04';
+      return '#2563eb';
+    }
+    async function generateSocialCard(record){
+      if(!record){toast('Sin registro','No hay un registro seleccionado para exportar.','alert');return;}
+      const c=$('social-canvas'),ctx=c.getContext('2d');if(!ctx){toast('Canvas no disponible','El navegador no pudo crear el lienzo.','alert');return;}
+      ctx.clearRect(0,0,c.width,c.height);const isQuake=record.recordType==='quake';const color=visualColorForRecord(record);
+      const bg=ctx.createLinearGradient(0,0,1080,1350);bg.addColorStop(0,'#081322');bg.addColorStop(1,'#14243a');ctx.fillStyle=bg;ctx.fillRect(0,0,1080,1350);
+      ctx.fillStyle=color;ctx.fillRect(0,0,1080,245);
+      ctx.fillStyle='rgba(255,255,255,.14)';roundedRect(ctx,58,48,118,118,24,'rgba(255,255,255,.14)','rgba(255,255,255,.48)');
+      ctx.font='76px Arial';ctx.fillStyle='#fff';ctx.fillText('🌊',78,133);
+      ctx.font='bold 30px Arial';ctx.fillText('TSUNAMIGUARD · OBSERVATORIO',212,83);
+      ctx.font='bold 52px Arial';ctx.fillText(isQuake?`SISMO M ${num(record.magnitude)}`:record.levelLabel.toUpperCase(),212,151);
+      ctx.font='bold 21px Arial';ctx.fillText(isQuake?'CATÁLOGO SÍSMICO · NO ES UNA ALERTA OFICIAL':`${record.source} · MENSAJE ${record.messageFormat}`,212,196);
+      roundedRect(ctx,54,274,972,1005,24,'#17283e','#30445e');
+      ctx.fillStyle=color;ctx.font='bold 78px Arial';ctx.fillText(isQuake?`M ${num(record.magnitude)}`:record.eventName||record.levelLabel,88,378);
+      ctx.fillStyle='#dce6f2';ctx.font='bold 31px Arial';wrapCanvasText(ctx,record.title,88,432,895,38,2);
+      ctx.fillStyle='#91a8c4';ctx.font='bold 19px Arial';ctx.fillText(isQuake?'EPICENTRO / UBICACIÓN': 'ÁREA O REGIÓN DEL MENSAJE',88,520);
+      await drawSatellitePanel(ctx,record,82,548,916,355);
+      ctx.fillStyle='#a9bbd1';ctx.font='bold 20px Arial';ctx.fillText('DATOS DEL REGISTRO',88,953);
+      ctx.fillStyle='#f8fafc';ctx.font='bold 25px Arial';
+      if(isQuake){ctx.fillText(`Profundidad: ${record.depth===null?'No informada':num(record.depth)+' km'}`,88,1002);ctx.fillText(`Catálogo: ${record.sourceLabel}`,88,1045);ctx.fillText(`Fecha UTC: ${fmtUTC(record.time)}`,88,1088);}
+      else{ctx.fillText(`Centro: ${record.source}`,88,1002);ctx.fillText(`Tipo: ${record.levelLabel}`,88,1045);ctx.fillText(`Fecha UTC: ${fmtUTC(record.time)}`,88,1088);}
+      ctx.fillStyle='#b8c7d9';ctx.font='19px Arial';let ending=wrapCanvasText(ctx,record.description||'La fuente no proporcionó descripción.',88,1140,900,27,3);
+      ctx.fillStyle='#6f839d';ctx.font='bold 17px Arial';ctx.fillText(isQuake?'Fuente: catálogo sísmico USGS / INGV':'Fuente: mensaje recibido del centro emisor',88,1242);
+      ctx.font='16px Arial';ctx.fillText('Verifica el mensaje original y las instrucciones de la autoridad competente.',88,1274);
+      $('preview-area').classList.add('visible');$('preview-area').scrollIntoView({behavior:'smooth',block:'start'});
+    }
+    async function downloadPNG(){
+      const canvas=$('social-canvas');try{const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('No se pudo generar el PNG. Puede existir una restricción de origen cruzado en los recursos gráficos.');const url=URL.createObjectURL(blob);const a=makeEl('a');a.href=url;a.download=`TsunamiGuard-${new Date().toISOString().replace(/[:.]/g,'-')}.png`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('Imagen preparada','El PNG 1080 × 1350 se ha generado.','success');}catch(e){toast('No se pudo exportar',e.message,'alert');}
+    }
+
+    function bindEvents(){
+      document.querySelectorAll('[data-theme-choice]').forEach(b=>b.addEventListener('click',()=>setTheme(b.dataset.themeChoice)));
+      $('btn-refresh').addEventListener('click',()=>refreshData(true));
+      $('search-events').addEventListener('input',()=>{STATE.page=1;renderFeed();});$('filter-mag').addEventListener('change',()=>{STATE.page=1;renderFeed();});
+      document.querySelectorAll('[data-feed-filter]').forEach(b=>b.addEventListener('click',()=>{STATE.filter=b.dataset.feedFilter;STATE.page=1;document.querySelectorAll('[data-feed-filter]').forEach(x=>x.classList.toggle('active',x===b));renderFeed();}));
+      $('page-prev').addEventListener('click',()=>{if(STATE.page>1){STATE.page--;renderFeed();}});$('page-next').addEventListener('click',()=>{STATE.page++;renderFeed();});
+      $('btn-audio-settings').addEventListener('click',()=>{$('settings-modal').classList.add('open');populateVoices();});
+      document.querySelectorAll('[data-close-modal]').forEach(b=>b.addEventListener('click',()=>closeModal(b.dataset.closeModal)));
+      document.querySelectorAll('.modal-backdrop').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id);}));
+      document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-backdrop.open').forEach(m=>closeModal(m.id));});
+      $('share-whatsapp').addEventListener('click',()=>{if(STATE.selected)window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(summaryForShare(STATE.selected))}`,'_blank','noopener');});
+      $('share-telegram').addEventListener('click',()=>{if(STATE.selected)window.open(`https://t.me/share/url?url=${encodeURIComponent(STATE.selected.detailUrl||location.href)}&text=${encodeURIComponent(summaryForShare(STATE.selected))}`,'_blank','noopener');});
+      $('copy-summary').addEventListener('click',()=>copyText(summaryForShare(STATE.selected)));
+      $('auto-refresh').addEventListener('change',e=>{STATE.settings.autoRefresh=e.target.checked;saveSettings();configureAutoRefresh();});
+      $('refresh-interval').addEventListener('change',e=>{STATE.settings.refreshInterval=Number(e.target.value);saveSettings();configureAutoRefresh();});
+      $('voice-enabled').addEventListener('change',e=>{STATE.settings.voiceEnabled=e.target.checked;saveSettings();});
+      $('siren-enabled').addEventListener('change',e=>{STATE.settings.sirenEnabled=e.target.checked;saveSettings();});
+      $('voice-select').addEventListener('change',e=>{STATE.settings.voiceName=e.target.value;saveSettings();});
+      $('voice-rate').addEventListener('input',e=>{STATE.settings.rate=Number(e.target.value);$('rate-value').textContent=STATE.settings.rate.toFixed(1)+'×';saveSettings();});
+      $('voice-pitch').addEventListener('input',e=>{STATE.settings.pitch=Number(e.target.value);$('pitch-value').textContent=STATE.settings.pitch.toFixed(1);saveSettings();});
+      $('activate-audio').addEventListener('click',unlockAudio);
+      $('test-voice').addEventListener('click',()=>speak('Prueba de audio de TsunamiGuard. Esta es una prueba de síntesis de voz.'));
+      $('test-siren').addEventListener('click',async()=>{if(!STATE.audioUnlocked)await unlockAudio();playSiren();});
+      $('generate-card').addEventListener('click',()=>generateSocialCard(findRecord($('social-event-select').value)));
+      $('social-event-select').addEventListener('change',()=>{const r=findRecord($('social-event-select').value);if(r)STATE.selected=r;});
+      $('download-png').addEventListener('click',downloadPNG);$('close-preview').addEventListener('click',()=>$('preview-area').classList.remove('visible'));
+      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()-STATE.lastRefresh>30000)refreshData(false);});
+      window.addEventListener('online',()=>{STATE.consecutiveFailures=0;toast('Conexión recuperada','Reanudando consulta de las fuentes.');refreshData(false);});
+      window.addEventListener('offline',()=>toast('Sin conexión','Se conservarán los últimos datos recibidos hasta recuperar Internet.','alert'));
+      if(window.speechSynthesis)window.speechSynthesis.onvoiceschanged=populateVoices;
+      if(window.matchMedia){window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{if(STATE.settings.theme==='system')setTheme('system');});}
+    }
+
+    function init(){
+      loadSettings();loadSeen();setTheme(STATE.settings.theme);initClock();renderSourceCards();syncSettingsUI();bindEvents();
+      if(window.L)initMap();else window.addEventListener('load',()=>{if(window.L)initMap();});
+      populateVoices();configureAutoRefresh();refreshData(false);
+    }
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+  })();
+  </script>
 </body>
 </html>
